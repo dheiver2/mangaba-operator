@@ -166,6 +166,23 @@ class Mangaba(ToolCallAgent):
                 await self.browser_context_helper.format_next_step_prompt()
             )
 
+        # Recitação (context engineering do Manus): reinjeta o plano no FIM do
+        # contexto a cada passo, puxando a atenção do modelo de volta ao objetivo
+        # em tarefas longas — evita que ele "esqueça" a meta após muitos passos.
+        todo_file = config.workspace_root / "todo.md"
+        if todo_file.is_file():
+            try:
+                todo = todo_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                todo = ""
+            if todo:
+                self.next_step_prompt = (
+                    f"{self.next_step_prompt}\n\n"
+                    f"CURRENT PLAN (workspace/todo.md):\n{todo[:2000]}\n\n"
+                    "Follow this plan. Mark finished items with [x] via str_replace_editor "
+                    "and execute the next pending step. Do not drift from the goal."
+                )
+
         result = await super().think()
 
         # Restore original prompt

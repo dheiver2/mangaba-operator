@@ -103,6 +103,8 @@ Recursos automáticos a cada execução:
 - **Pré-carga do modelo**: o `main.py` aquece o modelo no Mangaba Gateway antes do primeiro passo (sem cold start de minutos).
 - **Roteamento inteligente**: passos internos simples (ex. extração de conteúdo do navegador) usam o perfil `[llm.fast]` (`mangaba-lite-q4`), reservando o modelo pesado pro raciocínio.
 - **Memória persistente**: o agente lê e grava notas curtas em `workspace/memoria/` entre execuções (aprendizados, preferências — nunca segredos).
+- **Recitação de plano**: em tarefas longas o agente mantém `workspace/todo.md` e o plano é reinjetado no fim do contexto a cada passo — evita perder o objetivo (técnica de context engineering do Manus).
+- **Cache reversível**: páginas grandes baixadas pela `fetch_url` são salvas integralmente em `workspace/cache/`; o contexto recebe só um preview + o caminho, sem perda de informação.
 
 ### Agente de análise de dados
 

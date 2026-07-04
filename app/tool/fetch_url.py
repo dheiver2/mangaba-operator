@@ -4,9 +4,13 @@ Para páginas estáticas substitui o par go_to_url + extract_content do
 browser_use: uma única ação, sem Chromium e sem chamada extra de LLM.
 """
 
+import hashlib
+import re
+
 import httpx
 import markdownify
 
+from app.config import config
 from app.tool.base import BaseTool, ToolResult
 
 _MAX_CHARS = 12000
@@ -64,6 +68,24 @@ class FetchUrl(BaseTool):
 
         text = text.strip()
         max_chars = int(max_chars) if max_chars else _MAX_CHARS
-        if len(text) > max_chars:
-            text = text[:max_chars] + "\n\n[...conteúdo truncado...]"
-        return ToolResult(output=f"Conteúdo de {url}:\n\n{text}")
+        if len(text) <= max_chars:
+            return ToolResult(output=f"Conteúdo de {url}:\n\n{text}")
+
+        # Compressão reversível (context engineering): o conteúdo completo sai
+        # do contexto mas fica recuperável em arquivo — nada é perdido.
+        slug = re.sub(r"[^a-zA-Z0-9]+", "-", url.split("//", 1)[-1]).strip("-")[:60]
+        digest = hashlib.md5(url.encode()).hexdigest()[:8]
+        cache_dir = config.workspace_root / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        full_path = cache_dir / f"{slug}-{digest}.md"
+        full_path.write_text(text, encoding="utf-8")
+
+        preview = text[:max_chars]
+        return ToolResult(
+            output=(
+                f"Conteúdo de {url} (mostrando {max_chars} de {len(text)} caracteres):\n\n"
+                f"{preview}\n\n"
+                f"[CONTEÚDO COMPLETO salvo em {full_path} — se precisar do restante, "
+                f"leia esse arquivo com str_replace_editor (command view) ou python_execute]"
+            )
+        )
