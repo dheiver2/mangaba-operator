@@ -1,0 +1,107 @@
+name: Mangaba Operator
+
+# Mencione @mangaba num issue ou comentário e o agente executa a tarefa no
+# runner, com GitHub Models (grátis via GITHUB_TOKEN + permissão models:read),
+# e responde no próprio issue com o resultado + progresso + artefatos.
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+concurrency:
+  group: mangaba-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  mangaba:
+    if: >
+      (
+        (github.event_name == 'issues' && contains(github.event.issue.body, '@mangaba')) ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@mangaba'))
+      ) && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+        github.event_name == 'issues' && github.event.issue.author_association || github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Avisar que está trabalhando
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} \
+            --body "🥭 **Mangaba Operator** recebeu a tarefa e está trabalhando... ([acompanhar execução](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))"
+
+      - name: Instalar dependências
+        run: |
+          pip install -q uv
+          uv venv --python 3.12
+          uv pip install -q -r requirements.txt
+
+      - name: Executar o agente
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PEDIDO: ${{ github.event_name == 'issues' && github.event.issue.body || github.event.comment.body }}
+        run: |
+          TAREFA=$(python3 - <<'EOF'
+          import os, re
+          t = os.environ["PEDIDO"]
+          t = re.sub(r"@mangaba\b", "", t, flags=re.I).strip()
+          print(t)
+          EOF
+          )
+          .venv/bin/python main.py --model openai/gpt-4.1-mini --verificar --max-steps 12 \
+            --prompt "$TAREFA
+
+          Ao final, salve a resposta completa para o usuário em workspace/resposta.md (markdown)."
+
+      - name: Responder no issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## 🥭 Resultado"
+            echo
+            if [ -f workspace/resposta.md ]; then
+              cat workspace/resposta.md
+            else
+              echo "_A execução terminou sem gerar workspace/resposta.md — veja os logs da execução._"
+            fi
+            if [ -f workspace/todo.md ]; then
+              echo
+              echo "<details><summary>📋 Progresso (plano do agente)</summary>"
+              echo
+              cat workspace/todo.md
+              echo
+              echo "</details>"
+            fi
+            echo
+            echo "📎 **Artefatos gerados:**"
+            find workspace -maxdepth 1 -type f -newer requirements.txt \
+              ! -name 'example.txt' -exec basename {} \; | sed 's/^/- /' || true
+            echo
+            echo "_Arquivos completos disponíveis nos artifacts da [execução](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})._"
+          } > /tmp/comentario.md
+          gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/comentario.md
+
+      - name: Publicar artefatos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mangaba-workspace-issue-${{ github.event.issue.number }}
+          path: |
+            workspace/
+            !workspace/example.txt
+          if-no-files-found: ignore

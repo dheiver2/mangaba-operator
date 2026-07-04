@@ -69,6 +69,10 @@ class Mangaba(ToolCallAgent):
     def initialize_helper(self) -> "Mangaba":
         """Initialize basic components synchronously."""
         self.browser_context_helper = BrowserContextHelper(self)
+        # skills empresariais: só o catálogo entra no prompt (progressive disclosure)
+        from app.skills import catalogo
+
+        self.system_prompt = self.system_prompt + catalogo()
         return self
 
     @classmethod

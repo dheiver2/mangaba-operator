@@ -44,6 +44,33 @@ class ToolCallAgent(ReActAgent):
     max_steps: int = 30
     max_observe: Optional[Union[int, bool]] = None
 
+    def _audit(self, tool: str, args: dict, result: str) -> None:
+        """Trilha de auditoria: 1 linha JSON por tool call em workspace/logs/.
+
+        Compliance empresarial: quem (agente/passo), quando, qual ferramenta,
+        com quais argumentos e o começo do resultado. Nunca deve quebrar o loop.
+        """
+        try:
+            from datetime import datetime, timezone
+
+            from app.config import config
+
+            logs = config.workspace_root / "logs"
+            logs.mkdir(parents=True, exist_ok=True)
+            registro = {
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "agent": self.name,
+                "step": self.current_step,
+                "tool": tool,
+                "args": {k: (str(v)[:200]) for k, v in args.items()},
+                "result_preview": result[:200],
+                "error": result.startswith("Error"),
+            }
+            with (logs / "audit.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(registro, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
     def _shrink_context(self) -> bool:
         """Reduz o histórico pra caber na janela de contexto do modelo.
 
@@ -290,6 +317,7 @@ class ToolCallAgent(ReActAgent):
             # Execute the tool
             logger.info(f"🔧 Activating tool: '{name}'...")
             result = await self.available_tools.execute(name=name, tool_input=args)
+            self._audit(name, args, str(result) if result else "")
 
             # Handle special tools
             await self._handle_special_tool(name=name, result=result)
