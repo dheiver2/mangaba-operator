@@ -107,6 +107,19 @@ Digite sua tarefa no terminal e deixe o agente trabalhar. Também é possível p
 python main.py --prompt "pesquise os preços de fibra óptica em Alagoas e gere um relatório em Markdown"
 ```
 
+### 🎙️ Modo voz
+
+Fale a tarefa e o agente executa e responde falando — pipeline 100% local (ffmpeg → Whisper do gateway → agente → `say`):
+
+```bash
+python voz.py                # grava 6s do microfone e executa como tarefa
+python voz.py --seconds 10   # gravação mais longa
+python voz.py --chat         # pergunta e resposta direta, sem agente
+python voz.py --file x.wav   # usa um áudio pronto
+```
+
+Requer `ffmpeg` (`brew install ffmpeg`) e permissão de microfone no terminal.
+
 Outras formas de execução:
 
 ```bash
