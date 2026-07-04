@@ -44,6 +44,41 @@ class ToolCallAgent(ReActAgent):
     max_steps: int = 30
     max_observe: Optional[Union[int, bool]] = None
 
+    def _shrink_context(self) -> bool:
+        """Reduz o histórico pra caber na janela de contexto do modelo.
+
+        1º truncando observações de ferramenta longas; se não bastar, descarta
+        os passos mais antigos preservando a tarefa original e a cauda recente.
+        Retorna False quando não há mais o que encolher (evita loop infinito).
+        """
+        msgs = self.memory.messages
+        shrunk = False
+
+        # 1) trunca conteúdos longos (tool results e páginas coladas)
+        for m in msgs[:-2]:  # preserva as 2 mensagens mais recentes na íntegra
+            if m.content and len(m.content) > 1500:
+                m.content = (
+                    m.content[:1500] + "\n[...truncado para caber na janela de contexto...]"
+                )
+                shrunk = True
+        if shrunk:
+            return True
+
+        # 2) descarta o miolo antigo: mantém a 1ª mensagem (tarefa) + cauda
+        if len(msgs) <= 8:
+            return False
+        cut = len(msgs) - 6
+        # não começar a cauda com tool_result órfão (quebraria o pareamento)
+        while cut > 1 and msgs[cut].role == "tool":
+            cut -= 1
+        head = msgs[:1]
+        note = Message.assistant_message(
+            "[Earlier steps were omitted to fit the context window. "
+            "The original task and current plan remain unchanged.]"
+        )
+        self.memory.messages = head + [note] + msgs[cut:]
+        return True
+
     def _recover_tool_calls_from_text(self, content: str) -> List[ToolCall]:
         """Extrai chamadas escritas como texto, ex.: 'browser_use({"action": ...})'.
 
@@ -127,6 +162,15 @@ class ToolCallAgent(ReActAgent):
                 )
                 self.state = AgentState.FINISHED
                 return False
+            # Janela de contexto do provedor estourou: erro permanente — em vez
+            # de repetir/crashar, encolhe o histórico e tenta o passo de novo
+            err_text = f"{e} {getattr(e, '__cause__', '')}"
+            if "context window" in err_text or "exceed" in err_text.lower():
+                if self._shrink_context():
+                    logger.warning(
+                        "🧹 Contexto excedeu a janela do modelo; histórico encolhido, repetindo o passo"
+                    )
+                    return await self.think()
             raise
 
         self.tool_calls = tool_calls = (

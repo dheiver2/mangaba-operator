@@ -105,6 +105,7 @@ Recursos automáticos a cada execução:
 - **Memória persistente**: o agente lê e grava notas curtas em `workspace/memoria/` entre execuções (aprendizados, preferências — nunca segredos).
 - **Recitação de plano**: em tarefas longas o agente mantém `workspace/todo.md` e o plano é reinjetado no fim do contexto a cada passo — evita perder o objetivo (técnica de context engineering do Manus).
 - **Cache reversível**: páginas grandes baixadas pela `fetch_url` são salvas integralmente em `workspace/cache/`; o contexto recebe só um preview + o caminho, sem perda de informação.
+- **Auto-encolhimento de contexto**: se o histórico estourar a janela do modelo (8192 tokens no gateway), o agente trunca observações antigas e/ou descarta o miolo do histórico (preservando a tarefa e o plano) e repete o passo — em vez de crashar.
 
 ### Agente de análise de dados
 

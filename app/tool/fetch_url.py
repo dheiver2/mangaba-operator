@@ -13,7 +13,8 @@ import markdownify
 from app.config import config
 from app.tool.base import BaseTool, ToolResult
 
-_MAX_CHARS = 12000
+# Janela do gateway é 8192 tokens; preview precisa deixar espaço pro histórico
+_MAX_CHARS = 6000
 
 _HEADERS = {
     "User-Agent": (
