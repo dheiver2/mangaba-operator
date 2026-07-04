@@ -55,6 +55,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
+    (config.workspace_root / "todo.md").unlink(missing_ok=True)
     await preload_default_model()
 
     audio = Path(args.file) if args.file else gravar(args.seconds)

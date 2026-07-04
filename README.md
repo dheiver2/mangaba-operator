@@ -17,6 +17,7 @@
 - 🧠 **Agente geral** — programação, pesquisa, processamento de arquivos e navegação web
 - 🛠️ **Ferramentas integradas** — execução de código Python, shell (bash), editor de arquivos, fetch de páginas como markdown (`fetch_url`), busca web, automação de navegador, visualização de dados
 - 👁️🎙️ **Multimodal via Mangaba Gateway** — análise de imagens (`describe_image`, mangaba-vision-q8) e transcrição de áudio (`transcribe_audio`, Whisper)
+- 📊 **Documentos empresariais** — gera e lê `.xlsx`, `.docx`, `.pptx` e PDF de verdade (openpyxl, python-docx, python-pptx, reportlab, pypdf/pdfplumber, pandas, matplotlib via `python_execute`)
 - 🔌 **MCP (Model Context Protocol)** — conecte ferramentas externas via servidores MCP
 - 🤝 **Multi-agente** — fluxos com múltiplos agentes coordenados (`run_flow.py`), incluindo agente de análise de dados
 - 🌐 **Protocolo A2A** — interoperabilidade agente-a-agente (`protocol/a2a`)

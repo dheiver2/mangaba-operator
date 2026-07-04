@@ -33,6 +33,8 @@ async def main():
 
     # Memória persistente do agente entre execuções
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
+    # plano é por-execução: um todo.md de tarefa anterior confundiria a nova
+    (config.workspace_root / "todo.md").unlink(missing_ok=True)
 
     # Garante o modelo quente no gateway antes do primeiro passo
     await preload_default_model()

@@ -42,3 +42,13 @@ huggingface-hub~=0.29.2
 setuptools~=75.8.0
 structlog~=25.4.0
 daytona
+
+# Documentos empresariais (xlsx/docx/pptx/pdf/gráficos via python_execute)
+openpyxl
+xlsxwriter
+python-docx
+python-pptx
+pypdf
+pdfplumber
+reportlab
+matplotlib

@@ -89,6 +89,7 @@ async def main() -> None:
         return
 
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
+    (config.workspace_root / "todo.md").unlink(missing_ok=True)
     await preload_default_model()
 
     if args.fases:
