@@ -12,6 +12,7 @@ Uso:
 
 import argparse
 import asyncio
+import os
 import time
 from pathlib import Path
 
@@ -44,8 +45,24 @@ def listar() -> None:
     print(f"Concluídas: {len(list((FILA / 'concluidas').glob('*.task')))} · Falhas: {len(list((FILA / 'falhas').glob('*.task')))}")
 
 
-async def run(max_steps: int, model: str | None) -> None:
+async def _escalar(tarefa: str, prompt: str, motivo: str) -> None:
+    """HITL: exceção vira notificação pro humano com contexto completo."""
+    from app.tool.comms import NotifyWebhook
+
+    msg = (
+        f"🚨 Mangaba Operator — tarefa escalada pra revisão humana\n"
+        f"Tarefa: {tarefa}\nPedido: {prompt[:300]}\nMotivo: {motivo[:500]}\n"
+        f"Arquivos parciais em: {config.workspace_root}"
+    )
+    r = await NotifyWebhook().execute(message=msg)
+    if r.error:
+        logger.warning(f"Escalação registrada só em log (webhook indisponível): {r.error[:120]}")
+
+
+async def run(max_steps: int, model: str | None, verificar: bool = False) -> None:
     _dirs()
+    # trava estrutural HITL: em modo autônomo, ações irreversíveis viram rascunho
+    os.environ["MANGABA_AUTONOMO"] = "1"
     if model and not await apply_model_override(model):
         return
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
@@ -60,16 +77,27 @@ async def run(max_steps: int, model: str | None) -> None:
         prompt = tarefa.read_text(encoding="utf-8").strip()
         logger.warning(f"▶️  {tarefa.name}: {prompt[:80]}")
         (config.workspace_root / "todo.md").unlink(missing_ok=True)
-        agent = await Mangaba.create(max_steps=max_steps)
         try:
-            await agent.run(prompt)
+            if verificar:
+                from app.verificador import executar_com_verificacao
+
+                aprovado, parecer = await executar_com_verificacao(prompt, max_steps=max_steps)
+                if not aprovado:
+                    tarefa.rename(FILA / "falhas" / tarefa.name)
+                    await _escalar(tarefa.name, prompt, f"Reprovada pelo revisor: {parecer}")
+                    continue
+            else:
+                agent = await Mangaba.create(max_steps=max_steps)
+                try:
+                    await agent.run(prompt)
+                finally:
+                    await agent.cleanup()
             tarefa.rename(FILA / "concluidas" / tarefa.name)
             logger.info(f"✅ {tarefa.name} concluída")
         except Exception as e:
             logger.error(f"❌ {tarefa.name}: {e}")
             tarefa.rename(FILA / "falhas" / tarefa.name)
-        finally:
-            await agent.cleanup()
+            await _escalar(tarefa.name, prompt, f"Erro de execução: {e}")
 
 
 def main() -> None:
@@ -81,6 +109,10 @@ def main() -> None:
     p_run = sub.add_parser("run", help="Processa a fila em série")
     p_run.add_argument("--max-steps", type=int, default=10)
     p_run.add_argument("--model", type=str)
+    p_run.add_argument(
+        "--verificar", action="store_true",
+        help="Revisor valida cada tarefa; reprovadas são escaladas pro humano",
+    )
     args = parser.parse_args()
 
     if args.cmd == "add":
@@ -88,7 +120,7 @@ def main() -> None:
     elif args.cmd == "list":
         listar()
     else:
-        asyncio.run(run(args.max_steps, args.model))
+        asyncio.run(run(args.max_steps, args.model, args.verificar))
 
 
 if __name__ == "__main__":

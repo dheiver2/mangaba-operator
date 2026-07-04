@@ -126,13 +126,24 @@ python main.py --prompt "pesquise os preços de fibra óptica em Alagoas e gere 
 - `send_email` — envia e-mail via SMTP; o agente é instruído a nunca enviar sem pedido explícito e destinatário definido pelo usuário
 - `notify_webhook` — notificação pra Slack, gateway de WhatsApp, n8n etc.
 
+**Verificação antes da entrega** (padrão Reflexion: gerar → criticar → revisar): um revisor com contexto limpo compara os entregáveis com a tarefa; se reprovar, roda uma rodada de correção com o parecer como feedback:
+
+```bash
+python main.py --verificar --prompt "..."
+python fila.py run --verificar               # reprovadas são escaladas pro humano
+```
+
 **Fila de tarefas** (processamento em série — o gateway atende 1 inferência por vez):
 
 ```bash
 python fila.py add "Gerar o relatório semanal em workspace/relatorio.xlsx"
 python fila.py list
-python fila.py run --max-steps 10            # processa tudo; aceita --model
+python fila.py run --max-steps 10            # processa tudo; aceita --model e --verificar
 ```
+
+**Human-in-the-loop embutido no modo autônomo** (`fila.py`):
+- Tarefa que falha ou é reprovada pelo revisor → **escalada** via `notify_webhook` com contexto completo (você só é chamado na exceção)
+- `send_email` em execução autônoma vira **rascunho** em `workspace/rascunhos/` aguardando aprovação (envio direto só interativo, ou com `allow_autonomous_send = true` no `[email]`)
 
 **Agendamento** — combine a fila com cron (`crontab -e`):
 

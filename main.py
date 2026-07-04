@@ -25,6 +25,11 @@ async def main():
         required=False,
         help="Override do modelo padrão (ex.: mangaba-pro, mangaba-lite-q4)",
     )
+    parser.add_argument(
+        "--verificar",
+        action="store_true",
+        help="Ciclo gerar→criticar→revisar: um revisor de contexto limpo valida os entregáveis e dispara 1 rodada de correção se reprovar",
+    )
     args = parser.parse_args()
 
     # Override de modelo: gateway (mangaba-*) ou GitHub Models (openai/*, etc.)
@@ -39,15 +44,23 @@ async def main():
     # Garante o modelo quente no gateway antes do primeiro passo
     await preload_default_model()
 
+    # Use command line prompt if provided, otherwise ask for input
+    prompt = args.prompt if args.prompt else input("Enter your prompt: ")
+    if not prompt.strip():
+        logger.warning("Empty prompt provided.")
+        return
+
+    if args.verificar:
+        from app.verificador import executar_com_verificacao
+
+        logger.warning("Processing your request (com verificação)...")
+        aprovado, parecer = await executar_com_verificacao(prompt, max_steps=args.max_steps)
+        logger.info(f"Parecer final do revisor: {parecer[:500]}")
+        return
+
     # Create and initialize Mangaba agent
     agent = await Mangaba.create(max_steps=args.max_steps)
     try:
-        # Use command line prompt if provided, otherwise ask for input
-        prompt = args.prompt if args.prompt else input("Enter your prompt: ")
-        if not prompt.strip():
-            logger.warning("Empty prompt provided.")
-            return
-
         logger.warning("Processing your request...")
         await agent.run(prompt)
         logger.info("Request processing completed.")

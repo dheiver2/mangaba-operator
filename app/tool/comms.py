@@ -14,14 +14,16 @@ As credenciais ficam em seções opcionais do config/config.toml:
 """
 
 import asyncio
+import os
 import smtplib
+import time
 import tomllib
 from email.message import EmailMessage
 from pathlib import Path
 
 import httpx
 
-from app.config import PROJECT_ROOT
+from app.config import PROJECT_ROOT, config
 from app.tool.base import BaseTool, ToolResult
 
 
@@ -56,6 +58,22 @@ class SendEmail(BaseTool):
 
     async def execute(self, to: str, subject: str, body: str, **kwargs) -> ToolResult:
         cfg = _extra_config("email")
+        # Trava estrutural HITL (approval gate): em execução AUTÔNOMA (fila/cron),
+        # e-mail vira rascunho aguardando aprovação humana — envio real só
+        # interativo ou com allow_autonomous_send = true no [email].
+        if os.getenv("MANGABA_AUTONOMO") == "1" and not cfg.get("allow_autonomous_send", False):
+            rascunhos = config.workspace_root / "rascunhos"
+            rascunhos.mkdir(parents=True, exist_ok=True)
+            draft = rascunhos / f"{int(time.time())}-{to.replace('@', '_')}.eml"
+            draft.write_text(
+                f"To: {to}\nSubject: {subject}\n\n{body}", encoding="utf-8"
+            )
+            return ToolResult(
+                output=(
+                    f"MODO AUTÔNOMO: o e-mail NÃO foi enviado. Rascunho salvo em {draft} "
+                    "aguardando aprovação humana. Considere esta etapa concluída e siga."
+                )
+            )
         faltando = [k for k in ("smtp_host", "smtp_port", "username", "password") if k not in cfg]
         if faltando:
             return ToolResult(
