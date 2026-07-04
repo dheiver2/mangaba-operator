@@ -24,6 +24,9 @@ def _gateway_root() -> str:
 
 def _resolve(path: str) -> Path:
     p = Path(path)
+    # modelos às vezes escrevem "/workspace/x" como se fosse raiz absoluta
+    if p.is_absolute() and not p.exists() and p.parts[:2] == ("/", "workspace"):
+        p = Path(*p.parts[2:]) if len(p.parts) > 2 else Path(".")
     if not p.is_absolute():
         rel = p
         if rel.parts and rel.parts[0] == config.workspace_root.name:
@@ -193,4 +196,14 @@ class TranscribeAudio(BaseTool):
             return ToolResult(error=f"Falha ao transcrever áudio: {e}")
 
         data = resp.json()
-        return ToolResult(output=f"Transcrição de {path.name}:\n\n{data.get('transcription', str(data))}")
+        transcription = data.get("transcription", str(data))
+        # persistência (context engineering): sobrevive a cortes de histórico
+        cache_dir = config.workspace_root / "cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        saved = cache_dir / f"transcricao-{path.stem}.txt"
+        saved.write_text(transcription, encoding="utf-8")
+        return ToolResult(
+            output=(
+                f"Transcrição de {path.name} (salva em {saved}):\n\n{transcription}"
+            )
+        )

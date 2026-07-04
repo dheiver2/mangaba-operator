@@ -107,6 +107,17 @@ Digite sua tarefa no terminal e deixe o agente trabalhar. Também é possível p
 python main.py --prompt "pesquise os preços de fibra óptica em Alagoas e gere um relatório em Markdown"
 ```
 
+### 🔗 Modo pipeline (tarefas grandes)
+
+Pra tarefas que não cabem numa execução só (janela de 8k do gateway), o pipeline divide em fases — **cada fase roda num agente novo com contexto zerado**, e os resultados passam entre fases pelos arquivos do workspace:
+
+```bash
+python pipeline.py --prompt "tarefa grande"                       # o modelo planeja as fases
+python pipeline.py --prompt "..." --fases "fase 1; fase 2; ..."   # fases manuais
+```
+
+Regra prática: execução única (`main.py`) pra até ~6 passos; pipeline pra qualquer coisa maior ou multi-domínio (áudio + web + relatório).
+
 ### 🎙️ Modo voz
 
 Fale a tarefa e o agente executa e responde falando — pipeline 100% local (ffmpeg → Whisper do gateway → agente → `say`):

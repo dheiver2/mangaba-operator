@@ -127,6 +127,10 @@ class StrReplaceEditor(BaseTool):
         # Get the appropriate file operator
         operator = self._get_operator()
 
+        # "/workspace/x" não é raiz absoluta — modelos escrevem assim às vezes
+        _p = Path(path)
+        if _p.is_absolute() and not _p.exists() and _p.parts[:2] == ("/", "workspace"):
+            path = str(Path(*_p.parts[2:])) if len(_p.parts) > 2 else "."
         # Caminhos relativos são resolvidos contra o workspace — evita que o
         # agente desperdice um passo corrigindo "workspace/x.md" p/ absoluto
         if not Path(path).is_absolute():
