@@ -56,18 +56,23 @@ Crie o arquivo de configuração a partir do exemplo:
 cp config/config.example.toml config/config.toml
 ```
 
-Edite `config/config.toml` com sua chave de API:
+O provedor padrão é o **Mangaba Gateway** (API OpenAI-compatível com os modelos Mangaba):
 
 ```toml
 [llm]
-model = "claude-sonnet-5"
-base_url = "https://api.anthropic.com/v1/"
-api_key = "SUA_API_KEY"
-max_tokens = 8192
+model = "mangaba-max"          # 9B · raciocínio (também: mangaba-pro, mangaba-lite-q4)
+base_url = "https://walton-undepreciatory-tracee.ngrok-free.dev/v1"
+api_key = "mangaba"            # o gateway não exige chave
+max_tokens = 4096
 temperature = 0.0
+
+[llm.vision]
+model = "mangaba-vision-q8"    # multimodal · descreve imagens
+base_url = "https://walton-undepreciatory-tracee.ngrok-free.dev/v1"
+api_key = "mangaba"
 ```
 
-Há exemplos prontos para Anthropic, Azure, Google, Ollama e outros provedores em `config/config.example-model-*.toml`.
+Modelos disponíveis em `GET /v1/models`; o gateway suporta function-calling (`tools`) e streaming (SSE). Exemplos para outros provedores (Anthropic, Azure, Google, Ollama) em `config/config.example-model-*.toml`.
 
 ## ▶️ Uso
 

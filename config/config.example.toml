@@ -1,10 +1,11 @@
-# Global LLM configuration
+# Configuração global do LLM — provedor padrão: Mangaba Gateway (OpenAI-compatível)
+# Modelos: mangaba-max (9B raciocínio) · mangaba-pro (8B) · mangaba-vision-q8 (visão) · mangaba-lite-q4 (leve)
 [llm]
-model = "claude-3-7-sonnet-20250219"       # The LLM model to use
-base_url = "https://api.anthropic.com/v1/" # API endpoint URL
-api_key = "YOUR_API_KEY"                   # Your API key
-max_tokens = 8192                          # Maximum number of tokens in the response
-temperature = 0.0                          # Controls randomness
+model = "mangaba-max"                                               # Modelo a usar
+base_url = "https://walton-undepreciatory-tracee.ngrok-free.dev/v1" # Endpoint do Mangaba Gateway
+api_key = "mangaba"                                                 # Gateway não exige chave
+max_tokens = 4096                                                   # Máximo de tokens na resposta
+temperature = 0.0                                                   # Controla a aleatoriedade
 
 # [llm] # Amazon Bedrock
 # api_type = "aws"                                       # Required
@@ -41,11 +42,11 @@ temperature = 0.0                          # Controls randomness
 
 # Optional configuration for specific LLM models
 [llm.vision]
-model = "claude-3-7-sonnet-20250219"       # The vision model to use
-base_url = "https://api.anthropic.com/v1/" # API endpoint URL for vision model
-api_key = "YOUR_API_KEY"                   # Your API key for vision model
-max_tokens = 8192                          # Maximum number of tokens in the response
-temperature = 0.0                          # Controls randomness for vision model
+model = "mangaba-vision-q8"                                         # Modelo de visão (descreve imagens)
+base_url = "https://walton-undepreciatory-tracee.ngrok-free.dev/v1" # Endpoint do Mangaba Gateway
+api_key = "mangaba"                                                 # Gateway não exige chave
+max_tokens = 4096                                                   # Máximo de tokens na resposta
+temperature = 0.0                                                   # Controla a aleatoriedade
 
 # [llm.vision] #OLLAMA VISION:
 # api_type = 'ollama'
