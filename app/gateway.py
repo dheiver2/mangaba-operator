@@ -1,11 +1,48 @@
-"""Utilitários do Mangaba Gateway (pré-carga de modelo)."""
+"""Utilitários de provedores (Mangaba Gateway e GitHub Models)."""
 
 import asyncio
+import os
+import subprocess
 
 import httpx
 
 from app.config import config
 from app.logger import logger
+
+GITHUB_MODELS_URL = "https://models.github.ai/inference"
+
+
+async def apply_model_override(model: str) -> bool:
+    """Aplica o --model na config. Retorna False se o modelo for inválido.
+
+    Modelos com '/' (ex.: openai/gpt-4.1-mini) são do GitHub Models — API
+    gratuita OpenAI-compatível com janelas de até 1M tokens; o token vem de
+    GITHUB_TOKEN ou do `gh auth token`. Sem '/', é um modelo do gateway,
+    validado contra o /v1/models.
+    """
+    settings = config.llm["default"]
+    if "/" in model:
+        token = os.getenv("GITHUB_TOKEN") or subprocess.run(
+            ["gh", "auth", "token"], capture_output=True, text=True
+        ).stdout.strip()
+        if not token:
+            logger.error(
+                "GitHub Models requer token: exporte GITHUB_TOKEN ou faça `gh auth login`"
+            )
+            return False
+        settings.model = model
+        settings.base_url = GITHUB_MODELS_URL
+        settings.api_key = token
+        logger.info(f"🐙 Provedor desta execução: GitHub Models · {model} (janela grande)")
+        return True
+
+    available = await list_models()
+    if available and model not in available:
+        logger.error(f"Modelo '{model}' indisponível no gateway. Opções: {', '.join(available)}")
+        return False
+    settings.model = model
+    logger.info(f"🔀 Modelo padrão desta execução: {model}")
+    return True
 
 
 async def list_models() -> list[str]:

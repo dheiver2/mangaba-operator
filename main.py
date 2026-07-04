@@ -3,7 +3,7 @@ import asyncio
 
 from app.agent.mangaba import Mangaba
 from app.config import config
-from app.gateway import list_models, preload_default_model
+from app.gateway import apply_model_override, preload_default_model
 from app.logger import logger
 
 
@@ -27,14 +27,9 @@ async def main():
     )
     args = parser.parse_args()
 
-    # Override de modelo validado contra o /v1/models do gateway
-    if args.model:
-        available = await list_models()
-        if available and args.model not in available:
-            logger.error(f"Modelo '{args.model}' indisponível. Opções: {', '.join(available)}")
-            return
-        config.llm["default"].model = args.model
-        logger.info(f"🔀 Modelo padrão desta execução: {args.model}")
+    # Override de modelo: gateway (mangaba-*) ou GitHub Models (openai/*, etc.)
+    if args.model and not await apply_model_override(args.model):
+        return
 
     # Memória persistente do agente entre execuções
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,18 @@
+# GitHub Models — inferência GRATUITA (conta GitHub) com janelas de contexto
+# gigantes (openai/gpt-4.1* = 1M tokens; gpt-5/o3/o4 = 200k). Elimina os
+# problemas de janela de 8k do gateway local em tarefas grandes.
+#
+# Jeito mais fácil (sem editar config): flag --model com o token do gh CLI
+#   python main.py     --model openai/gpt-4.1-mini --prompt "..."
+#   python pipeline.py --model openai/gpt-4.1      --prompt "..."
+#
+# Ou fixo no config.toml (token: `gh auth token` ou PAT com escopo models:read):
+[llm]
+model = "openai/gpt-4.1-mini"                 # catálogo: https://models.github.ai/catalog/models
+base_url = "https://models.github.ai/inference"
+api_key = "SEU_GITHUB_TOKEN"
+max_tokens = 8192
+temperature = 0.0
+
+# Atenção: o tier gratuito tem rate limits por dia/minuto — pro uso contínuo,
+# mantenha o Mangaba Gateway como padrão e use GitHub Models sob demanda.

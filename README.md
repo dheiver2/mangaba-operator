@@ -81,6 +81,17 @@ Pra trocar o modelo de uma execução sem editar o config (validado contra o gat
 python main.py --model mangaba-pro --prompt "sua tarefa"
 ```
 
+### 🐙 Janela de contexto grande via GitHub Models (grátis)
+
+Tarefas que estouram a janela de 8k do gateway podem rodar no **GitHub Models** — inferência gratuita da sua conta GitHub com contexto de até **1M tokens** e modelos de ponta. Basta usar um modelo com `/` na flag (o token vem do `gh auth token` ou de `GITHUB_TOKEN`):
+
+```bash
+python main.py     --model openai/gpt-4.1-mini --prompt "tarefa grande"
+python pipeline.py --model openai/gpt-4.1      --prompt "tarefa gigante"
+```
+
+Catálogo completo em `https://models.github.ai/catalog/models` (gpt-4.1 = 1M ctx, gpt-5/o3/o4-mini = 200k). O tier gratuito tem rate limits — use o gateway local pro dia a dia e o GitHub Models pros casos grandes. Config fixa: `config/config.example-model-github.toml`.
+
 ### Cobertura do Mangaba Gateway (100%)
 
 | Endpoint do gateway | Uso no Operator |

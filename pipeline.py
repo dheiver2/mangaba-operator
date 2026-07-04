@@ -18,7 +18,7 @@ import re
 
 from app.agent.mangaba import Mangaba
 from app.config import config
-from app.gateway import preload_default_model
+from app.gateway import apply_model_override, preload_default_model
 from app.llm import LLM
 from app.logger import logger
 from app.schema import Message
@@ -80,7 +80,13 @@ async def main() -> None:
     parser.add_argument(
         "--fases", type=str, help="Fases manuais separadas por ';' (pula o planejamento)"
     )
+    parser.add_argument(
+        "--model", type=str, help="Override do modelo (mangaba-* ou GitHub Models, ex. openai/gpt-4.1-mini)"
+    )
     args = parser.parse_args()
+
+    if args.model and not await apply_model_override(args.model):
+        return
 
     (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
     await preload_default_model()
