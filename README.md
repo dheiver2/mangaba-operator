@@ -98,6 +98,44 @@ python run_mcp_server.py  # sobe o servidor MCP do Mangaba Operator
 python sandbox_main.py    # agente em sandbox isolado
 ```
 
+Recursos automáticos a cada execução:
+
+- **Pré-carga do modelo**: o `main.py` aquece o modelo no Mangaba Gateway antes do primeiro passo (sem cold start de minutos).
+- **Roteamento inteligente**: passos internos simples (ex. extração de conteúdo do navegador) usam o perfil `[llm.fast]` (`mangaba-lite-q4`), reservando o modelo pesado pro raciocínio.
+- **Memória persistente**: o agente lê e grava notas curtas em `workspace/memoria/` entre execuções (aprendizados, preferências — nunca segredos).
+
+### Agente de análise de dados
+
+Pra cases de CSV/gráficos, ative no `config.toml` (deps: `cd app/tool/chart_visualization && npm install`, requer Node 18+):
+
+```toml
+[runflow]
+use_data_analysis_agent = true
+```
+
+E rode via `python run_flow.py`.
+
+### Usar como servidor MCP
+
+O Operator pode virar ferramenta de qualquer cliente MCP (Claude Code, VS Code, chats):
+
+```bash
+python run_mcp_server.py
+```
+
+Configuração no cliente (ex. `mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "mangaba-operator": {
+      "command": "/caminho/para/mangaba-operator/.venv/bin/python",
+      "args": ["/caminho/para/mangaba-operator/run_mcp_server.py"]
+    }
+  }
+}
+```
+
 Para habilitar o agente de análise de dados no fluxo multi-agente, adicione ao `config.toml`:
 
 ```toml

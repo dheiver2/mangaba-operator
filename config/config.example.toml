@@ -40,6 +40,15 @@ temperature = 0.0                                                   # Controla a
 # max_tokens = 64000                                                 # Maximum number of tokens in the response
 # temperature = 0.0                                                  # Controls randomness
 
+# Perfil leve p/ passos internos simples (roteamento inteligente: extração de
+# conteúdo etc. não precisa do modelo pesado). Se ausente, usa o [llm] padrão.
+[llm.fast]
+model = "mangaba-lite-q4"                                           # Rápido e sempre disponível
+base_url = "https://walton-undepreciatory-tracee.ngrok-free.dev/v1" # Endpoint do Mangaba Gateway
+api_key = "mangaba"
+max_tokens = 2048
+temperature = 0.0
+
 # Optional configuration for specific LLM models
 [llm.vision]
 model = "mangaba-vision-q8"                                         # Modelo de visão (descreve imagens)

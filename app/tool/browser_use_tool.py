@@ -429,8 +429,10 @@ Page content:
                         },
                     }
 
-                    # Use LLM to extract content with required function calling
-                    response = await self.llm.ask_tool(
+                    # Roteamento: extração é tarefa simples — usa o perfil
+                    # [llm.fast] (modelo leve) se configurado, senão o default
+                    fast_llm = LLM(config_name="fast")
+                    response = await fast_llm.ask_tool(
                         messages,
                         tools=[extraction_function],
                         tool_choice="required",

@@ -2,6 +2,8 @@ import argparse
 import asyncio
 
 from app.agent.mangaba import Mangaba
+from app.config import config
+from app.gateway import preload_default_model
 from app.logger import logger
 
 
@@ -18,6 +20,12 @@ async def main():
         help="Maximum agent steps before stopping (default: 20)",
     )
     args = parser.parse_args()
+
+    # Memória persistente do agente entre execuções
+    (config.workspace_root / "memoria").mkdir(parents=True, exist_ok=True)
+
+    # Garante o modelo quente no gateway antes do primeiro passo
+    await preload_default_model()
 
     # Create and initialize Mangaba agent
     agent = await Mangaba.create(max_steps=args.max_steps)
