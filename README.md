@@ -153,6 +153,18 @@ python fila.py run --max-steps 10            # processa tudo; aceita --model e -
 0 8 * * 1 cd ~/Downloads/Projetos/mangaba-operator && .venv/bin/python fila.py add "Gerar relatório semanal em workspace/"
 ```
 
+### 🐙 @mangaba nos issues (agente no GitHub Actions)
+
+Mencione **@mangaba** em qualquer issue ou comentário do repositório e o Operator executa a tarefa no runner do GitHub — com **GitHub Models grátis** (token nativo do Actions) e verificação do revisor — e responde no próprio issue com resultado, progresso e artefatos. Restrito a owner/membros/colaboradores. Workflow: `.github/workflows/mangaba.yml`.
+
+### 🎓 Skills empresariais (progressive disclosure)
+
+Ensine padrões da SUA empresa sem estourar o contexto: cada pasta `skills/<nome>/SKILL.md` (frontmatter `name`/`description` + instruções) entra no prompt só como 1 linha de catálogo — o agente lê o arquivo completo quando a tarefa é daquele tipo. Incluídas: `proposta-comercial` e `ata-reuniao`. Crie as suas copiando o formato.
+
+### 🧾 Auditoria
+
+Toda tool call vira uma linha JSON em `workspace/logs/audit.jsonl` (timestamp, agente, passo, ferramenta, argumentos, preview do resultado, flag de erro) — trilha de compliance pronta pra inspeção.
+
 ### 🔗 Modo pipeline (tarefas grandes)
 
 Pra tarefas que não cabem numa execução só (janela de 8k do gateway), o pipeline divide em fases — **cada fase roda num agente novo com contexto zerado**, e os resultados passam entre fases pelos arquivos do workspace:
