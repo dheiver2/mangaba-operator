@@ -79,10 +79,28 @@ class ToolCallAgent(ReActAgent):
         Retorna False quando não há mais o que encolher (evita loop infinito).
         """
         msgs = self.memory.messages
-        shrunk = False
 
-        # 1) trunca conteúdos longos (tool results e páginas coladas)
-        for m in msgs[:-2]:  # preserva as 2 mensagens mais recentes na íntegra
+        # 0) dedupe de prompts injetados por passo (next-step, recitação do
+        #    todo.md, estado do navegador): são reinjetados a CADA think e
+        #    acumulam — só a ocorrência mais recente importa
+        injetados = [
+            i
+            for i, m in enumerate(msgs)
+            if m.role == "user"
+            and m.content
+            and any(k in m.content for k in self._MARCADORES_INJETADOS)
+        ]
+        if len(injetados) > 1:
+            manter = injetados[-1]
+            self.memory.messages = [
+                m for i, m in enumerate(msgs) if i == manter or i not in injetados
+            ]
+            return True
+
+        # 1) trunca conteúdos longos (tool results e páginas coladas),
+        #    preservando as 2 mensagens mais recentes na íntegra
+        shrunk = False
+        for m in msgs[:-2]:
             if m.content and len(m.content) > 1500:
                 m.content = (
                     m.content[:1500] + "\n[...truncado para caber na janela de contexto...]"
@@ -91,7 +109,18 @@ class ToolCallAgent(ReActAgent):
         if shrunk:
             return True
 
-        # 2) descarta o miolo antigo: mantém a 1ª mensagem (tarefa) + cauda
+        # 2) trunca TUDO, inclusive as mensagens mais recentes (uma última
+        #    observação gigante também estoura a janela sozinha)
+        for m in msgs:
+            if m.content and len(m.content) > 1000:
+                m.content = (
+                    m.content[:1000] + "\n[...truncado para caber na janela de contexto...]"
+                )
+                shrunk = True
+        if shrunk:
+            return True
+
+        # 3) descarta o miolo antigo: mantém a 1ª mensagem (tarefa) + cauda
         if len(msgs) <= 8:
             return False
         cut = len(msgs) - 6
@@ -159,9 +188,28 @@ class ToolCallAgent(ReActAgent):
             )
         return recovered
 
+    # prompts injetados por passo (next-step, recitação, estado do navegador):
+    # marcadores usados pra SUBSTITUIR a versão anterior em vez de acumular
+    _MARCADORES_INJETADOS = (
+        "Based on user needs, proactively select",
+        "CURRENT PLAN (workspace/todo.md)",
+        "What should I do next to achieve my goal?",
+    )
+
     async def think(self) -> bool:
         """Process current state and decide next actions using tools"""
         if self.next_step_prompt:
+            # remove as injeções de passos anteriores: só a atual importa —
+            # sem isso, o histórico cresce ~300-2000 tokens POR PASSO
+            self.memory.messages = [
+                m
+                for m in self.memory.messages
+                if not (
+                    m.role == "user"
+                    and m.content
+                    and any(k in m.content for k in self._MARCADORES_INJETADOS)
+                )
+            ]
             user_msg = Message.user_message(self.next_step_prompt)
             self.messages += [user_msg]
 
@@ -195,8 +243,15 @@ class ToolCallAgent(ReActAgent):
                 return False
             # Janela de contexto do provedor estourou: erro permanente — em vez
             # de repetir/crashar, encolhe o histórico e tenta o passo de novo
+            from app.exceptions import ContextWindowExceeded
+
             err_text = f"{e} {getattr(e, '__cause__', '')}"
-            if "context window" in err_text or "exceed" in err_text.lower():
+            if (
+                isinstance(e, ContextWindowExceeded)
+                or isinstance(getattr(e, "__cause__", None), ContextWindowExceeded)
+                or "context window" in err_text
+                or "exceed" in err_text.lower()
+            ):
                 if self._shrink_context():
                     logger.warning(
                         "🧹 Contexto excedeu a janela do modelo; histórico encolhido, repetindo o passo"

@@ -14,13 +14,14 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from tenacity import (
     retry,
     retry_if_exception_type,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_random_exponential,
 )
 
 from app.bedrock import BedrockClient
 from app.config import LLMSettings, config
-from app.exceptions import TokenLimitExceeded
+from app.exceptions import ContextWindowExceeded, TokenLimitExceeded
 from app.logger import logger  # Assuming a logger is set up in your app
 from app.schema import (
     ROLE_VALUES,
@@ -354,9 +355,9 @@ class LLM:
     @retry(
         wait=wait_random_exponential(min=1, max=60),
         stop=stop_after_attempt(6),
-        retry=retry_if_exception_type(
-            (OpenAIError, Exception, ValueError)
-        ),  # Don't retry TokenLimitExceeded
+        retry=retry_if_not_exception_type(
+            (TokenLimitExceeded, ContextWindowExceeded)
+        ),  # erros permanentes não são retryados
     )
     async def ask(
         self,
@@ -481,9 +482,9 @@ class LLM:
     @retry(
         wait=wait_random_exponential(min=1, max=60),
         stop=stop_after_attempt(6),
-        retry=retry_if_exception_type(
-            (OpenAIError, Exception, ValueError)
-        ),  # Don't retry TokenLimitExceeded
+        retry=retry_if_not_exception_type(
+            (TokenLimitExceeded, ContextWindowExceeded)
+        ),  # erros permanentes não são retryados
     )
     async def ask_with_images(
         self,
@@ -622,6 +623,8 @@ class LLM:
             logger.error(f"Validation error in ask_with_images: {ve}")
             raise
         except OpenAIError as oe:
+            if "exceed" in str(oe).lower() and "context" in str(oe).lower():
+                raise ContextWindowExceeded(str(oe)) from oe
             logger.error(f"OpenAI API error: {oe}")
             if isinstance(oe, AuthenticationError):
                 logger.error("Authentication failed. Check API key.")
@@ -637,9 +640,9 @@ class LLM:
     @retry(
         wait=wait_random_exponential(min=1, max=60),
         stop=stop_after_attempt(6),
-        retry=retry_if_exception_type(
-            (OpenAIError, Exception, ValueError)
-        ),  # Don't retry TokenLimitExceeded
+        retry=retry_if_not_exception_type(
+            (TokenLimitExceeded, ContextWindowExceeded)
+        ),  # erros permanentes não são retryados
     )
     async def ask_tool(
         self,
@@ -753,6 +756,8 @@ class LLM:
             logger.error(f"Validation error in ask_tool: {ve}")
             raise
         except OpenAIError as oe:
+            if "exceed" in str(oe).lower() and "context" in str(oe).lower():
+                raise ContextWindowExceeded(str(oe)) from oe
             logger.error(f"OpenAI API error: {oe}")
             if isinstance(oe, AuthenticationError):
                 logger.error("Authentication failed. Check API key.")

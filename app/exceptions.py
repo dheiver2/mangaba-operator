@@ -11,3 +11,10 @@ class MangabaError(Exception):
 
 class TokenLimitExceeded(MangabaError):
     """Exception raised when the token limit is exceeded"""
+
+
+class ContextWindowExceeded(MangabaError):
+    """Prompt maior que a janela de contexto do provedor.
+
+    Erro PERMANENTE: não deve ser retryado — o agente reage encolhendo o
+    histórico e repetindo o passo."""
