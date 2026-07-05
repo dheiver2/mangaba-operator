@@ -381,7 +381,31 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     page = await context.get_current_page()
                     import markdownify
 
+                    # SPAs pesadas: espera o render antes de capturar, e tenta
+                    # de novo se o HTML veio praticamente vazio
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=8000)
+                    except Exception:
+                        pass
                     content = markdownify.markdownify(await page.content())
+                    if len(content.strip()) < 500:
+                        await asyncio.sleep(3)
+                        content = markdownify.markdownify(await page.content())
+                    if len(content.strip()) < 500:
+                        # fallback: texto visível renderizado
+                        try:
+                            content = await page.inner_text("body")
+                        except Exception:
+                            content = content
+                    if len(content.strip()) < 200:
+                        return ToolResult(
+                            output=(
+                                "A página não expôs conteúdo extraível (provável SPA "
+                                "que bloqueia automação ou conteúdo carregado sob "
+                                "demanda). NÃO repita extract_content aqui: tente "
+                                "outra URL, use fetch_url, ou web_search sobre o tema."
+                            )
+                        )
 
                     prompt = f"""\
 Your task is to extract the content of the page. You will be given a page and a goal, and you should extract all relevant information around this goal from the page. If the goal is vague, summarize the page. Respond in json format.
@@ -445,7 +469,13 @@ Page content:
                             output=f"Extracted from page:\n{extracted_content}\n"
                         )
 
-                    return ToolResult(output="No content was extracted from the page.")
+                    return ToolResult(
+                        output=(
+                            "No content was extracted from the page. Do NOT repeat the "
+                            "same extract_content here — change strategy (scroll to the "
+                            "relevant section, another URL, fetch_url, or web_search)."
+                        )
+                    )
 
                 # Tab management actions
                 elif action == "switch_tab":

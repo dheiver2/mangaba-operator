@@ -113,6 +113,7 @@ class ToolCallAgent(ReActAgent):
         de tool_calls estruturado; sem isso o passo é desperdiçado.
         """
         recovered: List[ToolCall] = []
+        vistos: set = set()  # dedupe: o modelo repete a mesma chamada no texto
         for i, match in enumerate(re.finditer(r"(\w+)\s*\(\s*(?=\{)", content)):
             name = match.group(1)
             if name not in self.available_tools.tool_map:
@@ -147,6 +148,9 @@ class ToolCallAgent(ReActAgent):
                 json.loads(args)
             except json.JSONDecodeError:
                 continue
+            if (name, args) in vistos:
+                continue
+            vistos.add((name, args))
             recovered.append(
                 ToolCall(
                     id=f"recovered_{self.current_step}_{i}",
@@ -298,8 +302,46 @@ class ToolCallAgent(ReActAgent):
             )
             self.memory.add_message(tool_msg)
             results.append(result)
+            self._check_insistence(command, result)
 
         return "\n\n".join(results)
+
+    def _check_insistence(self, command: ToolCall, result: str) -> None:
+        """Anti-insistência: a mesma chamada falhando repetidamente exige mudança.
+
+        Modelos pequenos tendem a repetir a ação que acabou de falhar. Após 2
+        falhas idênticas (mesma ferramenta + argumentos), injeta uma diretiva
+        no contexto forçando troca de estratégia.
+        """
+        falhou = result.startswith("Error") or "No content was extracted" in result
+        if not falhou:
+            return
+        assinatura = f"{command.function.name}|{command.function.arguments}"
+        repeticoes = 0
+        for m in self.memory.messages:
+            if m.role == "assistant" and m.tool_calls:
+                for tc in m.tool_calls:
+                    if f"{tc.function.name}|{tc.function.arguments}" == assinatura:
+                        repeticoes += 1
+        ja_avisado = any(
+            m.role == "user" and m.content and "STRATEGY CHANGE REQUIRED" in m.content
+            for m in self.memory.messages[-6:]
+        )
+        if repeticoes >= 2 and not ja_avisado:
+            logger.warning(
+                f"🔁 Ação '{command.function.name}' falhou {repeticoes}x com os mesmos argumentos; forçando mudança de estratégia"
+            )
+            self.memory.add_message(
+                Message.user_message(
+                    "STRATEGY CHANGE REQUIRED: the action "
+                    f"`{command.function.name}` with these exact arguments has now "
+                    f"failed {repeticoes} times. Repeating it again is FORBIDDEN. "
+                    "Choose a DIFFERENT approach: a different tool (fetch_url, "
+                    "web_search), a different target/URL, or — if no alternative "
+                    "exists — save a short report of what was attempted to the "
+                    "workspace and call terminate."
+                )
+            )
 
     async def execute_tool(self, command: ToolCall) -> str:
         """Execute a single tool call with robust error handling"""
