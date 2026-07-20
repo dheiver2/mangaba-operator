@@ -16,6 +16,7 @@
 
 - 🧠 **Agente geral** — programação, pesquisa, processamento de arquivos e navegação web
 - 🛠️ **Ferramentas integradas** — execução de código Python, shell (bash), editor de arquivos, fetch de páginas como markdown (`fetch_url`), busca web, automação de navegador, visualização de dados
+- 🕹️ **Automação web avançada** — além de clique/digitação por índice DOM, coordenadas cruas e ações visuais (`visual_query`/`visual_click`): hover, duplo clique, clique direito, upload de arquivo, preenchimento de formulário em lote (`fill_form`), espera por texto dinâmico (`wait_for_text`), execução de JavaScript (`execute_js`), captura de evidências (`screenshot_save`/`save_page`) e inspeção de elementos (`get_element_info`)
 - 👁️🎙️ **Multimodal via Mangaba Gateway** — análise de imagens (`describe_image`, mangaba-vision-q8) e transcrição de áudio (`transcribe_audio`, Whisper)
 - 📊 **Documentos empresariais** — gera e lê `.xlsx`, `.docx`, `.pptx` e PDF de verdade (openpyxl, python-docx, python-pptx, reportlab, pypdf/pdfplumber, pandas, matplotlib via `python_execute`)
 - 🔌 **MCP (Model Context Protocol)** — conecte ferramentas externas via servidores MCP

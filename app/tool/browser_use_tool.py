@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import json
+import os
+from datetime import datetime
 from typing import Generic, Optional, TypeVar
 
 from browser_use import Browser as BrowserUseBrowser
@@ -31,6 +33,12 @@ Key capabilities include:
 * Tab management: Switch between tabs, open new tabs, or close tabs
 * Coordinate interaction: Click or drag at raw (x, y) viewport coordinates — works on canvas, maps and pages whose elements are not in the DOM tree
 * Vision: 'visual_query' answers questions about the rendered page via screenshot; 'visual_click' locates an element described in natural language and clicks it (requires a multimodal model in the [llm.vision] profile)
+* Rich interaction: hover over elements (reveal menus/tooltips), double click and right click by element index or coordinates
+* Forms & files: 'fill_form' fills several fields in one call; 'upload_file' attaches a local file to a file input
+* Synchronization: 'wait_for_text' blocks until a text appears on the page (dynamic/SPA content)
+* Scripting: 'execute_js' runs JavaScript in the page and returns its JSON result
+* Artifacts: 'screenshot_save' and 'save_page' persist a full-page screenshot / the page HTML to the workspace
+* Introspection: 'get_element_info' returns tag, attributes, value, text and bounding box of an element
 
 Note: When using element indices, refer to the numbered elements shown in the current browser state.
 Prefer DOM actions (click_element/input_text). Fall back to coordinate/vision actions only when the target is not in the interactive elements list (canvas, maps, custom widgets, broken pages).
@@ -68,6 +76,16 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     "drag_coordinates",
                     "visual_query",
                     "visual_click",
+                    "hover_element",
+                    "double_click",
+                    "right_click",
+                    "upload_file",
+                    "fill_form",
+                    "wait_for_text",
+                    "execute_js",
+                    "screenshot_save",
+                    "save_page",
+                    "get_element_info",
                 ],
                 "description": "The browser action to perform",
             },
@@ -77,7 +95,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             },
             "index": {
                 "type": "integer",
-                "description": "Element index for 'click_element', 'input_text', 'get_dropdown_options', or 'select_dropdown_option' actions",
+                "description": "Element index for 'click_element', 'input_text', 'get_dropdown_options', 'select_dropdown_option', 'hover_element', 'double_click', 'right_click', 'upload_file' or 'get_element_info' actions",
             },
             "text": {
                 "type": "string",
@@ -121,7 +139,27 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             },
             "seconds": {
                 "type": "integer",
-                "description": "Seconds to wait for 'wait' action",
+                "description": "Seconds to wait for 'wait' action, or timeout for 'wait_for_text' (default 10)",
+            },
+            "path": {
+                "type": "string",
+                "description": "File path for 'upload_file' (local file to attach), 'screenshot_save' or 'save_page' (destination; relative paths land in the workspace; optional for the last two)",
+            },
+            "script": {
+                "type": "string",
+                "description": "JavaScript expression/IIFE for 'execute_js'. Its return value comes back JSON-serialized",
+            },
+            "fields": {
+                "type": "array",
+                "description": "For 'fill_form': list of {\"index\": <element index>, \"text\": <value>} objects, filled in order",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "text": {"type": "string"},
+                    },
+                    "required": ["index", "text"],
+                },
             },
         },
         "required": ["action"],
@@ -145,6 +183,16 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             "drag_coordinates": ["x", "y", "x2", "y2"],
             "visual_query": ["goal"],
             "visual_click": ["goal"],
+            "hover_element": ["index"],
+            "double_click": [],
+            "right_click": [],
+            "upload_file": ["index", "path"],
+            "fill_form": ["fields"],
+            "wait_for_text": ["text"],
+            "execute_js": ["script"],
+            "screenshot_save": [],
+            "save_page": [],
+            "get_element_info": ["index"],
         },
     }
 
@@ -230,6 +278,9 @@ class BrowserUseTool(BaseTool, Generic[Context]):
         y: Optional[int] = None,
         x2: Optional[int] = None,
         y2: Optional[int] = None,
+        path: Optional[str] = None,
+        script: Optional[str] = None,
+        fields: Optional[list] = None,
         **kwargs,
     ) -> ToolResult:
         """
@@ -688,6 +739,211 @@ Page content:
                     await asyncio.sleep(0.5)
                     return ToolResult(
                         output=f"Visually located '{goal}' and clicked at ({cx}, {cy})"
+                    )
+
+                # Interações ricas — hover/duplo clique/clique direito, por
+                # índice DOM ou coordenada crua
+                elif action == "hover_element":
+                    if index is None:
+                        return ToolResult(
+                            error="Index is required for 'hover_element' action"
+                        )
+                    element = await context.get_dom_element_by_index(index)
+                    if not element:
+                        return ToolResult(error=f"Element with index {index} not found")
+                    page = await context.get_current_page()
+                    await page.hover(f"xpath={element.xpath}")
+                    await asyncio.sleep(0.5)
+                    return ToolResult(output=f"Hovered over element at index {index}")
+
+                elif action in ("double_click", "right_click"):
+                    button = "left" if action == "double_click" else "right"
+                    page = await context.get_current_page()
+                    if index is not None:
+                        element = await context.get_dom_element_by_index(index)
+                        if not element:
+                            return ToolResult(
+                                error=f"Element with index {index} not found"
+                            )
+                        selector = f"xpath={element.xpath}"
+                        if action == "double_click":
+                            await page.dblclick(selector)
+                        else:
+                            await page.click(selector, button="right")
+                        target = f"element at index {index}"
+                    elif x is not None and y is not None:
+                        if action == "double_click":
+                            await page.mouse.dblclick(x, y)
+                        else:
+                            await page.mouse.click(x, y, button="right")
+                        target = f"coordinates ({x}, {y})"
+                    else:
+                        return ToolResult(
+                            error=f"'{action}' requires an element index or x/y coordinates"
+                        )
+                    await asyncio.sleep(0.5)
+                    verb = "Double-clicked" if action == "double_click" else "Right-clicked"
+                    return ToolResult(output=f"{verb} {target}")
+
+                elif action == "upload_file":
+                    if index is None or not path:
+                        return ToolResult(
+                            error="Index and path are required for 'upload_file' action"
+                        )
+                    if not os.path.isfile(path):
+                        return ToolResult(error=f"Local file not found: {path}")
+                    element = await context.get_dom_element_by_index(index)
+                    if not element:
+                        return ToolResult(error=f"Element with index {index} not found")
+                    page = await context.get_current_page()
+                    try:
+                        await page.set_input_files(f"xpath={element.xpath}", path)
+                    except Exception as e:
+                        return ToolResult(
+                            error=(
+                                f"Element at index {index} did not accept a file "
+                                f"(precisa ser um <input type='file'>): {e}"
+                            )
+                        )
+                    return ToolResult(
+                        output=f"Attached '{path}' to file input at index {index}"
+                    )
+
+                elif action == "fill_form":
+                    # LLMs às vezes mandam a lista como string JSON
+                    if isinstance(fields, str):
+                        try:
+                            fields = json.loads(fields)
+                        except json.JSONDecodeError:
+                            return ToolResult(
+                                error="'fields' must be a JSON list of {index, text}"
+                            )
+                    if not fields or not isinstance(fields, list):
+                        return ToolResult(
+                            error="A non-empty 'fields' list is required for 'fill_form'"
+                        )
+                    filled, errors = [], []
+                    for item in fields:
+                        f_index = _to_int((item or {}).get("index"))
+                        f_text = (item or {}).get("text")
+                        if f_index is None or f_text is None:
+                            errors.append(f"invalid item: {item!r}")
+                            continue
+                        element = await context.get_dom_element_by_index(f_index)
+                        if not element:
+                            errors.append(f"index {f_index} not found")
+                            continue
+                        try:
+                            await context._input_text_element_node(element, str(f_text))
+                            filled.append(f_index)
+                        except Exception as e:
+                            errors.append(f"index {f_index}: {e}")
+                    summary = f"Filled {len(filled)} field(s): {filled}"
+                    if errors:
+                        summary += f" | Failures: {'; '.join(errors)}"
+                    return ToolResult(output=summary)
+
+                elif action == "wait_for_text":
+                    if not text:
+                        return ToolResult(
+                            error="Text is required for 'wait_for_text' action"
+                        )
+                    timeout_s = seconds if seconds else 10
+                    page = await context.get_current_page()
+                    try:
+                        await page.get_by_text(text, exact=False).first.wait_for(
+                            state="visible", timeout=timeout_s * 1000
+                        )
+                        return ToolResult(
+                            output=f"Text '{text}' is now visible on the page"
+                        )
+                    except Exception:
+                        return ToolResult(
+                            output=(
+                                f"Text '{text}' did NOT appear within {timeout_s}s. "
+                                "The page may still be loading or the text may never "
+                                "render — check the current state before retrying."
+                            )
+                        )
+
+                elif action == "execute_js":
+                    if not script:
+                        return ToolResult(
+                            error="Script is required for 'execute_js' action"
+                        )
+                    page = await context.get_current_page()
+                    result = await page.evaluate(script)
+                    try:
+                        rendered = json.dumps(result, ensure_ascii=False, default=str)
+                    except (TypeError, ValueError):
+                        rendered = repr(result)
+                    if len(rendered) > max_content_length:
+                        rendered = rendered[:max_content_length] + "… (truncated)"
+                    return ToolResult(output=f"JavaScript result: {rendered}")
+
+                # Artefatos — persistem evidências no workspace
+                elif action in ("screenshot_save", "save_page"):
+                    page = await context.get_current_page()
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    default_name = (
+                        f"screenshot_{ts}.png"
+                        if action == "screenshot_save"
+                        else f"page_{ts}.html"
+                    )
+                    dest = path or default_name
+                    if not os.path.isabs(dest):
+                        dest = str(config.workspace_root / dest)
+                    os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+                    if action == "screenshot_save":
+                        await page.screenshot(
+                            path=dest, full_page=True, animations="disabled"
+                        )
+                        return ToolResult(output=f"Saved full-page screenshot to {dest}")
+                    html = await page.content()
+                    with open(dest, "w", encoding="utf-8") as fh:
+                        fh.write(html)
+                    return ToolResult(
+                        output=f"Saved page HTML ({len(html)} bytes) to {dest}"
+                    )
+
+                elif action == "get_element_info":
+                    if index is None:
+                        return ToolResult(
+                            error="Index is required for 'get_element_info' action"
+                        )
+                    element = await context.get_dom_element_by_index(index)
+                    if not element:
+                        return ToolResult(error=f"Element with index {index} not found")
+                    page = await context.get_current_page()
+                    info = await page.evaluate(
+                        """
+                        (xpath) => {
+                            const el = document.evaluate(xpath, document, null,
+                                XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                            if (!el) return null;
+                            const r = el.getBoundingClientRect();
+                            const attrs = {};
+                            for (const a of el.attributes) attrs[a.name] = a.value;
+                            return {
+                                tag: el.tagName.toLowerCase(),
+                                attributes: attrs,
+                                value: el.value ?? null,
+                                text: (el.innerText || '').trim().slice(0, 300),
+                                bbox: {x: Math.round(r.x), y: Math.round(r.y),
+                                       width: Math.round(r.width), height: Math.round(r.height)},
+                                visible: r.width > 0 && r.height > 0,
+                                disabled: el.disabled ?? false,
+                            };
+                        }
+                    """,
+                        element.xpath,
+                    )
+                    if info is None:
+                        return ToolResult(
+                            error=f"Element at index {index} vanished from the DOM"
+                        )
+                    return ToolResult(
+                        output=f"Element info: {json.dumps(info, ensure_ascii=False)}"
                     )
 
                 # Utility actions
