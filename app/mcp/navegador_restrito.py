@@ -9,7 +9,12 @@ sem execução de JavaScript, com travas fixas no código:
   navegação feita pela própria página);
 - Chromium sem janela, uma sessão isolada por agente (cabeçalho X-Sessao),
   apagada depois de NAVEGADOR_SESSAO_MIN minutos sem uso;
-- fase 1: todas as ferramentas são de LEITURA (readOnlyHint=True);
+- leitura (readOnlyHint=True): abrir, ler, listar links, buscar, ver
+  elementos e formulários, baixar arquivos;
+- ação (readOnlyHint=False): enviar_formulario e clicar_botao. O agente
+  cliente deve pedir aprovação ao usuário antes de chamá-las; elas conferem
+  se a página aberta ainda é a mesma (url) e nunca preenchem senha nem
+  anexam arquivo;
 - o texto das páginas volta marcado como DADO: o agente não deve obedecer
   instruções escritas nelas.
 
@@ -221,6 +226,96 @@ def texto_do_arquivo(corpo: bytes, tipo: str, url: str) -> str:
     raise ValueError(f"formato não suportado para leitura ({tipo or 'desconhecido'})")
 
 
+JS_FORMULARIO = r"""() => {
+  const vis = e => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const limpa = t => (t || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const rotulo = e => {
+    let t = '';
+    if (e.id) { const l = document.querySelector(`label[for="${CSS.escape(e.id)}"]`); if (l) t = l.innerText; }
+    if (!t && e.closest('label')) t = e.closest('label').innerText;
+    return limpa(t || e.getAttribute('aria-label') || e.placeholder || e.title);
+  };
+  const ignora = ['hidden', 'submit', 'button', 'image', 'reset'];
+  const campos = [...document.querySelectorAll('input,select,textarea')]
+    .filter(e => !ignora.includes(e.type) && !e.disabled && vis(e))
+    .map(e => ({
+      chave: e.name || e.id || rotulo(e), rotulo: rotulo(e),
+      tipo: e.tagName === 'SELECT' ? 'lista' : e.tagName === 'TEXTAREA' ? 'texto longo' : e.type,
+      obrigatorio: !!e.required,
+      opcoes: e.tagName === 'SELECT' ? [...e.options].map(o => limpa(o.text)).filter(Boolean).slice(0, 30) : null,
+      valor: (e.type === 'radio' || e.type === 'checkbox') ? e.value : null,
+    }));
+  const botoes = [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')]
+    .filter(vis).map(b => limpa(b.innerText || b.value || b.getAttribute('aria-label'))).filter(Boolean);
+  return {campos, botoes: [...new Set(botoes)].slice(0, 40)};
+}"""
+
+# Marca no DOM os campos pedidos (por name, id ou rótulo) e o botão (pelo texto),
+# para o Playwright digitar e clicar com eventos reais.
+JS_MARCAR = r"""([chaves, botao]) => {
+  const vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const norm = t => (t || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const rotulo = e => {
+    let t = '';
+    if (e.id) { const l = document.querySelector(`label[for="${CSS.escape(e.id)}"]`); if (l) t = l.innerText; }
+    if (!t && e.closest('label')) t = e.closest('label').innerText;
+    return norm(t || e.getAttribute('aria-label') || e.placeholder || e.title);
+  };
+  document.querySelectorAll('[data-mg-alvo]').forEach(e => e.removeAttribute('data-mg-alvo'));
+  const todos = [...document.querySelectorAll('input,select,textarea')].filter(e => !e.disabled && e.type !== 'hidden');
+  const campos = chaves.map((k, i) => {
+    const n = norm(k);
+    const achados = todos.filter(e => norm(e.name) === n || norm(e.id) === n || rotulo(e) === n);
+    if (!achados.length) return null;
+    achados.forEach(e => e.setAttribute('data-mg-alvo', 'c' + i));
+    const e = achados[0];
+    return {tipo: e.tagName === 'SELECT' ? 'lista' : e.tagName === 'TEXTAREA' ? 'textarea' : e.type,
+            valores: achados.map(x => norm(x.value)), rotulos: achados.map(rotulo)};
+  });
+  let alvo = null;
+  if (botao) {
+    const b = norm(botao);
+    const cands = [...document.querySelectorAll('button, input[type=submit], input[type=button], [role=button], a')].filter(vis);
+    const txt = e => norm(e.innerText || e.value || e.getAttribute('aria-label'));
+    const e = cands.find(x => txt(x) === b) || cands.find(x => txt(x).includes(b));
+    if (e) { e.setAttribute('data-mg-alvo', 'botao'); alvo = txt(e); }
+  }
+  return {campos, botao: alvo};
+}"""
+
+ACAO = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=True)
+
+
+def mesma_pagina(atual: str, esperada: str) -> bool:
+    return atual.split("#")[0].rstrip("/") == esperada.strip().split("#")[0].rstrip("/")
+
+
+def pagina_mudou(atual: str, esperada: str) -> str:
+    aberta = "nenhuma página" if atual in ("", "about:blank") else atual
+    return (
+        f"NÃO FEITO: a página aberta agora é {aberta}, não {esperada}. Nada foi enviado. "
+        "Abra a página de novo, confira o formulário e peça outra aprovação ao usuário."
+    )
+
+
+async def resultado_da_acao(s: "Sessao", page, antes: str) -> str:
+    """Espera a resposta do site e devolve título, endereço e o começo do texto."""
+    try:
+        await page.wait_for_load_state("load", timeout=15_000)
+    except Exception:
+        pass
+    if s.bloqueios:
+        return recusa(s.bloqueios[-1]) + " (o site tentou levar para lá depois do envio; a navegação foi bloqueada)"
+    s.texto = await texto_da_pagina(page)
+    trecho, _, total = pedaco(s.texto, 1)
+    onde = "mesma página" if mesma_pagina(page.url, antes) else "nova página"
+    return (
+        f"FEITO. Resposta do site ({onde}): {await page.title()}\nURL: {page.url}\n"
+        f"Texto em {total} parte(s). Parte 1:\n\n{AVISO_DADO}{trecho}"
+    )
+
+
 def pedaco(texto: str, parte: int) -> tuple[str, int, int]:
     total = max(1, -(-len(texto) // PEDACO))
     parte = min(max(1, parte), total)
@@ -349,6 +444,101 @@ def criar_servidor() -> FastMCP:
             return "O arquivo não tem texto extraível (provavelmente é imagem escaneada)."
         trecho, n, total = pedaco(texto, parte)
         return f"Arquivo {resp.url} ({len(corpo) // 1024} KB) — parte {n} de {total}:\n\n{AVISO_DADO}{trecho}"
+
+    @mcp.tool(title="Ver formulário", annotations=LEITURA)
+    async def ver_formulario(ctx: Context = None) -> str:  # type: ignore[assignment]
+        """Lista os campos (chave, rótulo, tipo, opções) e os botões da página aberta.
+        Use antes de enviar_formulario: as chaves daqui são as que ela aceita."""
+        s = await sessao(chave_da_sessao(ctx))
+        page = await (await s.tool._ensure_browser_initialized()).get_current_page()
+        if page.url in ("", "about:blank"):
+            return "Nenhuma página aberta. Use abrir_pagina primeiro."
+        f = await page.evaluate(JS_FORMULARIO)
+        linhas = []
+        for c in f["campos"]:
+            extra = []
+            if c["obrigatorio"]:
+                extra.append("obrigatório")
+            if c["opcoes"]:
+                extra.append("opções: " + " | ".join(c["opcoes"]))
+            if c["valor"]:
+                extra.append(f"valor {c['valor']!r}")
+            if c["tipo"] in ("password", "file"):
+                extra.append("NÃO PODE ser preenchido pelo agente")
+            linhas.append(f"- chave {c['chave']!r} — {c['rotulo'] or 'sem rótulo'} ({c['tipo']}{'; ' + '; '.join(extra) if extra else ''})")
+        if not linhas and not f["botoes"]:
+            return f"Nenhum formulário nem botão em {page.url}."
+        return (
+            f"Formulário em {page.url}\n{AVISO_DADO}Campos:\n" + ("\n".join(linhas) or "(nenhum)")
+            + "\nBotões: " + (" | ".join(f["botoes"]) or "(nenhum)")
+        )
+
+    async def _agir(ctx, url: str, campos: dict[str, str], botao: str) -> str:
+        url = url.strip()
+        if not url_permitida(url):
+            return recusa(url)
+        s = await sessao(chave_da_sessao(ctx))
+        page = await (await s.tool._ensure_browser_initialized()).get_current_page()
+        if not mesma_pagina(page.url, url):
+            return pagina_mudou(page.url, url)
+        chaves = list(campos)
+        m = await page.evaluate(JS_MARCAR, [chaves, botao])
+        faltam = [k for k, c in zip(chaves, m["campos"]) if c is None]
+        if faltam:
+            return f"NÃO FEITO: campo(s) {', '.join(map(repr, faltam))} não existem nesta página. Nada foi enviado. Use ver_formulario."
+        proibidos = [k for k, c in zip(chaves, m["campos"]) if c["tipo"] in ("password", "file")]
+        if proibidos:
+            return f"NÃO FEITO: {', '.join(map(repr, proibidos))} é senha ou anexo — o usuário precisa preencher pessoalmente. Nada foi enviado."
+        if not m["botao"]:
+            return f"NÃO FEITO: botão {botao!r} não encontrado. Nada foi enviado. Use ver_formulario para ver os botões."
+        try:
+            for i, (k, valor) in enumerate(campos.items()):
+                c = m["campos"][i]
+                alvo = page.locator(f'[data-mg-alvo="c{i}"]')
+                valor = str(valor)
+                if c["tipo"] == "lista":
+                    try:
+                        await alvo.first.select_option(label=valor, timeout=5000)
+                    except Exception:
+                        await alvo.first.select_option(value=valor, timeout=5000)
+                elif c["tipo"] == "checkbox":
+                    marcar = valor.strip().lower() not in ("", "0", "false", "nao", "não", "off")
+                    await (alvo.first.check if marcar else alvo.first.uncheck)(timeout=5000)
+                elif c["tipo"] == "radio":
+                    v = valor.strip().lower()
+                    idx = next((j for j, (val, rot) in enumerate(zip(c["valores"], c["rotulos"])) if v in (val, rot)), None)
+                    if idx is None:
+                        return f"NÃO FEITO: {valor!r} não é uma opção de {k!r}. Nada foi enviado."
+                    await alvo.nth(idx).check(timeout=5000)
+                else:
+                    await alvo.first.fill(valor, timeout=5000)
+        except Exception as e:
+            return f"NÃO FEITO: não consegui preencher ({str(e).splitlines()[0][:160]}). Nada foi enviado."
+        s.bloqueios.clear()
+        antes = page.url
+        try:
+            await page.locator('[data-mg-alvo="botao"]').first.click(timeout=10_000)
+        except Exception as e:
+            if s.bloqueios:
+                return recusa(s.bloqueios[-1])
+            return f"ERRO ao clicar em {botao!r}: {str(e).splitlines()[0][:160]}"
+        return await resultado_da_acao(s, page, antes)
+
+    @mcp.tool(title="Enviar formulário", annotations=ACAO)
+    async def enviar_formulario(url: str, campos: dict[str, str], botao: str, ctx: Context = None) -> str:  # type: ignore[assignment]
+        """Preenche os campos e clica no botão de envio da página aberta. É AÇÃO (envia
+        dados ao site): o cliente deve submetê-la à aprovação do usuário. url = endereço da página aberta (confere que não mudou);
+        campos = {chave: valor} com as chaves de ver_formulario (caixa de marcar: "sim"/"não";
+        lista: o texto da opção); botao = texto do botão (ex.: "Enviar"). Não preenche senha nem anexo."""
+        if not campos:
+            return "NÃO FEITO: informe ao menos um campo (ou use clicar_botao)."
+        return await _agir(ctx, url, campos, botao)
+
+    @mcp.tool(title="Clicar em botão", annotations=ACAO)
+    async def clicar_botao(url: str, botao: str, ctx: Context = None) -> str:  # type: ignore[assignment]
+        """Clica num botão da página aberta (ex.: "Próximo", "Consultar", "Aceitar"). É AÇÃO: o
+        cliente deve submetê-la à aprovação do usuário. url = endereço da página aberta; botao = texto do botão."""
+        return await _agir(ctx, url, {}, botao)
 
     return mcp
 
