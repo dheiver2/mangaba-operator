@@ -12,22 +12,22 @@ _MAX_ROWS = 100
 class SqliteQuery(BaseTool):
     name: str = "sqlite_query"
     description: str = (
-        "Executa SQL em um banco SQLite do workspace (SELECT, CREATE, INSERT...). "
-        "Com 'csv_import', carrega antes um CSV como tabela — jeito rápido de "
-        "analisar dados tabulares com SQL sem escrever Python. O banco padrão é "
+        "Runs SQL on a workspace SQLite database (SELECT, CREATE, INSERT...). "
+        "With 'csv_import', first loads a CSV as a table — a quick way to "
+        "analyze tabular data with SQL without writing Python. The default database is "
         "workspace/dados.db."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "sql": {"type": "string", "description": "Comando SQL a executar"},
+            "sql": {"type": "string", "description": "SQL statement to run"},
             "db_path": {
                 "type": "string",
-                "description": "Arquivo .db/.sqlite (padrão: dados.db no workspace)",
+                "description": "The .db/.sqlite file (default: dados.db in the workspace)",
             },
             "csv_import": {
                 "type": "string",
-                "description": "CSV a importar antes da consulta; vira tabela com o nome do arquivo",
+                "description": "CSV to import before the query; becomes a table named after the file",
             },
         },
         "required": ["sql"],
@@ -42,19 +42,19 @@ class SqliteQuery(BaseTool):
         try:
             con = sqlite3.connect(db)
         except sqlite3.Error as e:
-            return ToolResult(error=f"Não abriu o banco {db}: {e}")
+            return ToolResult(error=f"Could not open database {db}: {e}")
 
         try:
             if csv_import:
                 src = _resolve(csv_import)
                 if not src.is_file():
-                    return ToolResult(error=f"CSV não encontrado: {src}")
+                    return ToolResult(error=f"CSV not found: {src}")
                 table = src.stem.replace("-", "_").replace(" ", "_")
                 with open(src, newline="", encoding="utf-8", errors="replace") as fh:
                     reader = csv.reader(fh)
                     header = next(reader, None)
                     if not header:
-                        return ToolResult(error=f"CSV vazio: {src}")
+                        return ToolResult(error=f"CSV is empty: {src}")
                     cols = ", ".join(f'"{c.strip()}"' for c in header)
                     ph = ", ".join("?" for _ in header)
                     con.execute(f'DROP TABLE IF EXISTS "{table}"')
@@ -67,21 +67,21 @@ class SqliteQuery(BaseTool):
                     con.commit()
 
             cur = con.execute(sql)
-            if cur.description:  # consulta com resultado
+            if cur.description:  # query returned rows
                 cols = [d[0] for d in cur.description]
                 rows = cur.fetchmany(_MAX_ROWS)
                 more = cur.fetchone() is not None
                 lines = ["\t".join(cols)]
                 lines += ["\t".join("" if v is None else str(v) for v in r) for r in rows]
-                tail = "\n… (mais linhas; refine com LIMIT)" if more else ""
-                out = f"{len(rows)} linha(s):\n" + "\n".join(lines) + tail
+                tail = "\n… (more rows; refine with LIMIT)" if more else ""
+                out = f"{len(rows)} row(s):\n" + "\n".join(lines) + tail
             else:
                 con.commit()
-                out = f"OK — {cur.rowcount if cur.rowcount >= 0 else 0} linha(s) afetada(s)"
+                out = f"OK — {cur.rowcount if cur.rowcount >= 0 else 0} row(s) affected"
             if csv_import:
-                out = f"CSV importado como tabela '{table}' ({n} linhas).\n" + out
+                out = f"CSV imported as table '{table}' ({n} rows).\n" + out
             return ToolResult(output=out)
         except sqlite3.Error as e:
-            return ToolResult(error=f"Erro SQL: {e}")
+            return ToolResult(error=f"SQL error: {e}")
         finally:
             con.close()

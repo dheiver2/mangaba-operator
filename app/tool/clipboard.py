@@ -11,9 +11,9 @@ _PREVIEW = 3000
 class Clipboard(BaseTool):
     name: str = "clipboard"
     description: str = (
-        "Lê (paste) ou escreve (copy) a área de transferência do sistema — jeito "
-        "rápido de trocar texto com apps abertos do usuário (colar num campo, "
-        "receber algo que o usuário copiou)."
+        "Reads (paste) or writes (copy) the system clipboard — a quick way to "
+        "exchange text with the user's open apps (paste into a field, "
+        "receive something the user copied)."
     )
     parameters: dict = {
         "type": "object",
@@ -21,25 +21,25 @@ class Clipboard(BaseTool):
             "action": {
                 "type": "string",
                 "enum": ["copy", "paste"],
-                "description": "copy: coloca 'text' no clipboard; paste: retorna o conteúdo atual",
+                "description": "copy: put 'text' on the clipboard; paste: return the current contents",
             },
-            "text": {"type": "string", "description": "Texto a copiar (para 'copy')"},
+            "text": {"type": "string", "description": "Text to copy (for 'copy')"},
         },
         "required": ["action"],
     }
 
     async def execute(self, action: str, text: str = "", **kwargs) -> ToolResult:
         if not shutil.which("pbcopy"):
-            return ToolResult(error="pbcopy/pbpaste indisponíveis (exige macOS)")
+            return ToolResult(error="pbcopy/pbpaste unavailable (requires macOS)")
 
         if action == "copy":
             if not text:
-                return ToolResult(error="'copy' exige 'text'")
+                return ToolResult(error="'copy' requires 'text'")
             proc = await asyncio.create_subprocess_exec(
                 "pbcopy", stdin=asyncio.subprocess.PIPE
             )
             await proc.communicate(text.encode("utf-8"))
-            return ToolResult(output=f"Copiados {len(text)} caracteres para o clipboard")
+            return ToolResult(output=f"Copied {len(text)} characters to the clipboard")
 
         if action == "paste":
             proc = await asyncio.create_subprocess_exec(
@@ -48,10 +48,10 @@ class Clipboard(BaseTool):
             out, _ = await proc.communicate()
             content = out.decode("utf-8", errors="replace")
             if not content:
-                return ToolResult(output="Clipboard vazio")
+                return ToolResult(output="Clipboard is empty")
             preview = content[:_PREVIEW] + (
-                "… (truncado)" if len(content) > _PREVIEW else ""
+                "… (truncated)" if len(content) > _PREVIEW else ""
             )
             return ToolResult(output=f"Clipboard ({len(content)} chars):\n{preview}")
 
-        return ToolResult(error=f"Ação desconhecida: {action}")
+        return ToolResult(error=f"Unknown action: {action}")

@@ -38,30 +38,30 @@ def _resolve(path: str) -> Path:
 class DescribeImage(BaseTool):
     name: str = "describe_image"
     description: str = (
-        "Analisa uma imagem local (foto, screenshot, gráfico, documento escaneado) e "
-        "responde em texto o que ela contém. Use quando precisar entender conteúdo "
-        "visual: descrever imagens, ler gráficos, extrair informação de fotos de "
-        "documentos. Aceita um prompt específico (ex.: 'extraia os valores da tabela')."
+        "Analyzes a local image (photo, screenshot, chart, scanned document) and "
+        "answers in text what it contains. Use when you need to understand visual "
+        "content: describe images, read charts, extract information from photos of "
+        "documents. Accepts a specific prompt (e.g. 'extract the values from the table')."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
             "image_path": {
                 "type": "string",
-                "description": "Caminho do arquivo de imagem (png/jpg/webp); relativo é resolvido contra o workspace",
+                "description": "Path to the image file (png/jpg/webp); relative paths resolve against the workspace",
             },
             "prompt": {
                 "type": "string",
-                "description": "Pergunta ou instrução sobre a imagem (padrão: 'Descreva esta imagem.')",
+                "description": "Question or instruction about the image (default: 'Describe this image.')",
             },
         },
         "required": ["image_path"],
     }
 
-    async def execute(self, image_path: str, prompt: str = "Descreva esta imagem.", **kwargs) -> ToolResult:
+    async def execute(self, image_path: str, prompt: str = "Describe this image.", **kwargs) -> ToolResult:
         path = _resolve(image_path)
         if not path.is_file():
-            return ToolResult(error=f"Imagem não encontrada: {path}")
+            return ToolResult(error=f"Image not found: {path}")
 
         vision_model = (config.llm.get("vision") or config.llm["default"]).model
         url = f"{_gateway_root()}/api/v1/{vision_model}/image/describe"
@@ -74,39 +74,39 @@ class DescribeImage(BaseTool):
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            return ToolResult(error=f"Gateway retornou HTTP {e.response.status_code}: {e.response.text[:300]}")
+            return ToolResult(error=f"Gateway returned HTTP {e.response.status_code}: {e.response.text[:300]}")
         except Exception as e:
-            return ToolResult(error=f"Falha ao analisar imagem: {e}")
+            return ToolResult(error=f"Failed to analyze image: {e}")
 
         data = resp.json()
         text = data.get("description") or data.get("reply") or data.get("text") or str(data)
         # o modelo de visão às vezes vaza tags de raciocínio na resposta
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-        return ToolResult(output=f"Análise de {path.name}:\n\n{text}")
+        return ToolResult(output=f"Analysis of {path.name}:\n\n{text}")
 
 
 class AudioChat(BaseTool):
     name: str = "audio_chat"
     description: str = (
-        "Ouve um arquivo de áudio local e RESPONDE ao que foi falado, em uma única "
-        "chamada (transcrição + resposta do modelo). Use quando o áudio contém uma "
-        "pergunta ou pedido a ser respondido diretamente (ex.: responder mensagem de "
-        "voz). Para apenas converter fala em texto, prefira transcribe_audio."
+        "Listens to a local audio file and REPLIES to what was said, in a single "
+        "call (transcription + model reply). Use when the audio contains a "
+        "question or request to answer directly (e.g. replying to a voice "
+        "message). To only convert speech to text, prefer transcribe_audio."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
             "audio_path": {
                 "type": "string",
-                "description": "Caminho do arquivo de áudio; relativo é resolvido contra o workspace",
+                "description": "Path to the audio file; relative paths resolve against the workspace",
             },
             "instructions": {
                 "type": "string",
-                "description": "Instrução de como responder (ex.: 'responda de forma breve e formal')",
+                "description": "Instruction on how to reply (e.g. 'reply briefly and formally')",
             },
             "language": {
                 "type": "string",
-                "description": "Idioma falado no áudio, ex. 'pt' (padrão)",
+                "description": "Language spoken in the audio, e.g. 'pt' (default)",
             },
         },
         "required": ["audio_path"],
@@ -115,13 +115,13 @@ class AudioChat(BaseTool):
     async def execute(
         self,
         audio_path: str,
-        instructions: str = "Você é um assistente útil em português.",
+        instructions: str = "You are a helpful assistant. Reply in the user's language; default to English.",
         language: str = "pt",
         **kwargs,
     ) -> ToolResult:
         path = _resolve(audio_path)
         if not path.is_file():
-            return ToolResult(error=f"Áudio não encontrado: {path}")
+            return ToolResult(error=f"Audio not found: {path}")
 
         # usa o modelo padrão (já quente pela pré-carga) pra gerar a resposta
         model = config.llm["default"].model
@@ -139,16 +139,16 @@ class AudioChat(BaseTool):
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            return ToolResult(error=f"Gateway retornou HTTP {e.response.status_code}: {e.response.text[:300]}")
+            return ToolResult(error=f"Gateway returned HTTP {e.response.status_code}: {e.response.text[:300]}")
         except Exception as e:
-            return ToolResult(error=f"Falha no audio_chat: {e}")
+            return ToolResult(error=f"audio_chat failed: {e}")
 
         data = resp.json()
         reply = re.sub(r"<think>.*?</think>", "", data.get("reply", ""), flags=re.DOTALL).strip()
         return ToolResult(
             output=(
-                f"Transcrição de {path.name}:\n{data.get('transcription', '')}\n\n"
-                f"Resposta:\n{reply}"
+                f"Transcript of {path.name}:\n{data.get('transcription', '')}\n\n"
+                f"Reply:\n{reply}"
             )
         )
 
@@ -156,20 +156,20 @@ class AudioChat(BaseTool):
 class TranscribeAudio(BaseTool):
     name: str = "transcribe_audio"
     description: str = (
-        "Transcreve um arquivo de áudio local (wav/mp3/m4a/ogg) para texto usando "
-        "Whisper. Use para transcrever reuniões, mensagens de voz, ligações ou "
-        "qualquer gravação de fala."
+        "Transcribes a local audio file (wav/mp3/m4a/ogg) to text using "
+        "Whisper. Use to transcribe meetings, voice messages, calls or "
+        "any speech recording."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
             "audio_path": {
                 "type": "string",
-                "description": "Caminho do arquivo de áudio; relativo é resolvido contra o workspace",
+                "description": "Path to the audio file; relative paths resolve against the workspace",
             },
             "language": {
                 "type": "string",
-                "description": "Código do idioma falado, ex. 'pt' (padrão), 'en', 'es'",
+                "description": "Language code spoken in the audio, e.g. 'pt' (default), 'en', 'es'",
             },
         },
         "required": ["audio_path"],
@@ -178,7 +178,7 @@ class TranscribeAudio(BaseTool):
     async def execute(self, audio_path: str, language: str = "pt", **kwargs) -> ToolResult:
         path = _resolve(audio_path)
         if not path.is_file():
-            return ToolResult(error=f"Áudio não encontrado: {path}")
+            return ToolResult(error=f"Audio not found: {path}")
 
         # Whisper independe do modelo de texto; o slug leve evita swap desnecessário
         url = f"{_gateway_root()}/api/v1/mangaba-lite-q4/audio/transcribe"
@@ -191,9 +191,9 @@ class TranscribeAudio(BaseTool):
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            return ToolResult(error=f"Gateway retornou HTTP {e.response.status_code}: {e.response.text[:300]}")
+            return ToolResult(error=f"Gateway returned HTTP {e.response.status_code}: {e.response.text[:300]}")
         except Exception as e:
-            return ToolResult(error=f"Falha ao transcrever áudio: {e}")
+            return ToolResult(error=f"Failed to transcribe audio: {e}")
 
         data = resp.json()
         transcription = data.get("transcription", str(data))
@@ -204,6 +204,6 @@ class TranscribeAudio(BaseTool):
         saved.write_text(transcription, encoding="utf-8")
         return ToolResult(
             output=(
-                f"Transcrição de {path.name} (salva em {saved}):\n\n{transcription}"
+                f"Transcript of {path.name} (saved to {saved}):\n\n{transcription}"
             )
         )

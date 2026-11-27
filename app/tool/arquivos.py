@@ -10,9 +10,9 @@ from app.tool.gateway_media import _resolve
 class Archive(BaseTool):
     name: str = "archive"
     description: str = (
-        "Compacta arquivos/pastas em .zip, extrai .zip/.tar.gz/.tgz, ou lista o "
-        "conteúdo de um pacote sem extrair. Caminhos relativos são resolvidos "
-        "contra o workspace."
+        "Compresses files/folders into a .zip, extracts .zip/.tar.gz/.tgz, or lists the "
+        "contents of an archive without extracting. Relative paths are resolved "
+        "against the workspace."
     )
     parameters: dict = {
         "type": "object",
@@ -20,20 +20,20 @@ class Archive(BaseTool):
             "action": {
                 "type": "string",
                 "enum": ["zip", "unzip", "list"],
-                "description": "zip: compacta 'sources' em 'dest'; unzip: extrai 'archive_path' em 'dest'; list: lista 'archive_path'",
+                "description": "zip: compress 'sources' into 'dest'; unzip: extract 'archive_path' into 'dest'; list: list 'archive_path'",
             },
             "sources": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Arquivos/pastas a compactar (para 'zip')",
+                "description": "Files/folders to compress (for 'zip')",
             },
             "archive_path": {
                 "type": "string",
-                "description": "Pacote existente (para 'unzip'/'list')",
+                "description": "Existing archive (for 'unzip'/'list')",
             },
             "dest": {
                 "type": "string",
-                "description": "Destino: o .zip a criar, ou a pasta de extração (padrão: workspace)",
+                "description": "Destination: the .zip to create, or the extraction folder (default: workspace)",
             },
         },
         "required": ["action"],
@@ -50,7 +50,7 @@ class Archive(BaseTool):
         try:
             if action == "zip":
                 if not sources:
-                    return ToolResult(error="'zip' exige a lista 'sources'")
+                    return ToolResult(error="'zip' requires the 'sources' list")
                 if isinstance(sources, str):
                     sources = [sources]
                 out = _resolve(dest or "arquivo.zip")
@@ -68,17 +68,17 @@ class Archive(BaseTool):
                                     zf.write(f, f.relative_to(p.parent))
                                     count += 1
                         else:
-                            return ToolResult(error=f"Não encontrado: {p}")
+                            return ToolResult(error=f"Not found: {p}")
                 size = out.stat().st_size
                 return ToolResult(
-                    output=f"Compactados {count} arquivo(s) em {out} ({size} bytes)"
+                    output=f"Compressed {count} file(s) into {out} ({size} bytes)"
                 )
 
             if not archive_path:
-                return ToolResult(error=f"'{action}' exige 'archive_path'")
+                return ToolResult(error=f"'{action}' requires 'archive_path'")
             pkg = _resolve(archive_path)
             if not pkg.is_file():
-                return ToolResult(error=f"Pacote não encontrado: {pkg}")
+                return ToolResult(error=f"Archive not found: {pkg}")
 
             is_tar = pkg.suffixes[-2:] == [".tar", ".gz"] or pkg.suffix in (".tgz", ".tar")
 
@@ -90,8 +90,8 @@ class Archive(BaseTool):
                     with zipfile.ZipFile(pkg) as zf:
                         names = zf.namelist()
                 shown = "\n".join(f"  {n}" for n in names[:100])
-                extra = f" (+{len(names) - 100} omitidos)" if len(names) > 100 else ""
-                return ToolResult(output=f"{len(names)} entrada(s){extra}:\n{shown}")
+                extra = f" (+{len(names) - 100} omitted)" if len(names) > 100 else ""
+                return ToolResult(output=f"{len(names)} entries{extra}:\n{shown}")
 
             if action == "unzip":
                 target = _resolve(dest) if dest else _resolve(pkg.stem)
@@ -104,8 +104,8 @@ class Archive(BaseTool):
                     with zipfile.ZipFile(pkg) as zf:
                         zf.extractall(target)
                         n = len(zf.namelist())
-                return ToolResult(output=f"Extraídas {n} entrada(s) em {target}")
+                return ToolResult(output=f"Extracted {n} entries to {target}")
 
-            return ToolResult(error=f"Ação desconhecida: {action}")
+            return ToolResult(error=f"Unknown action: {action}")
         except (zipfile.BadZipFile, tarfile.TarError) as e:
-            return ToolResult(error=f"Pacote corrompido ou formato não suportado: {e}")
+            return ToolResult(error=f"Corrupted archive or unsupported format: {e}")

@@ -391,9 +391,9 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     if not getattr(search_response, "results", None):
                         return ToolResult(
                             error=(
-                                f"Busca por '{query}' nao retornou resultados. "
-                                "Se o objetivo e o YouTube, use 'go_to_url' com "
-                                "https://www.youtube.com/results?search_query=SEU+TERMO"
+                                f"Search for '{query}' returned no results. "
+                                "If the goal is YouTube, use 'go_to_url' with "
+                                "https://www.youtube.com/results?search_query=YOUR+TERM"
                             )
                         )
                     first_search_result = search_response.results[0]
@@ -401,8 +401,8 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     if not url_to_navigate or not str(url_to_navigate).startswith("http"):
                         return ToolResult(
                             error=(
-                                f"Busca retornou URL invalida: {url_to_navigate!r}. "
-                                "Use 'go_to_url' com uma URL completa."
+                                f"Search returned an invalid URL: {url_to_navigate!r}. "
+                                "Use 'go_to_url' with a full URL."
                             )
                         )
 
@@ -545,10 +545,10 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     if len(content.strip()) < 200:
                         return ToolResult(
                             output=(
-                                "A página não expôs conteúdo extraível (provável SPA "
-                                "que bloqueia automação ou conteúdo carregado sob "
-                                "demanda). NÃO repita extract_content aqui: tente "
-                                "outra URL, use fetch_url, ou web_search sobre o tema."
+                                "The page exposed no extractable content (likely an SPA "
+                                "that blocks automation or loads content on "
+                                "demand). Do NOT repeat extract_content here: try "
+                                "another URL, use fetch_url, or web_search on the topic."
                             )
                         )
 
@@ -686,11 +686,11 @@ Page content:
                     if not model_supports_images(vision_llm.model):
                         return ToolResult(
                             error=(
-                                f"O perfil [llm.vision] aponta para '{vision_llm.model}', "
-                                "que não aceita imagens (a API DeepSeek é texto-puro). "
-                                "Use as ações DOM (click_element/input_text) ou "
-                                "click_coordinates; para habilitar visão, configure um "
-                                "modelo multimodal em [llm.vision] no config.toml."
+                                f"The [llm.vision] profile points to '{vision_llm.model}', "
+                                "which does not accept images (the DeepSeek API is text-only). "
+                                "Use the DOM actions (click_element/input_text) or "
+                                "click_coordinates; to enable vision, configure a "
+                                "multimodal model in [llm.vision] in config.toml."
                             )
                         )
 
@@ -714,9 +714,9 @@ Page content:
                                 {
                                     "role": "user",
                                     "content": (
-                                        "Você vê um screenshot da janela visível de uma "
-                                        f"página web ({viewport['width']}x{viewport['height']} px). "
-                                        f"Responda de forma objetiva: {goal}"
+                                        "You are looking at a screenshot of the visible window of a "
+                                        f"web page ({viewport['width']}x{viewport['height']} px). "
+                                        f"Answer concisely: {goal}"
                                     ),
                                 }
                             ],
@@ -730,13 +730,13 @@ Page content:
                             {
                                 "role": "user",
                                 "content": (
-                                    "Você vê um screenshot da janela visível de uma página "
-                                    f"web com {viewport['width']}x{viewport['height']} pixels. "
-                                    f"Localize o seguinte elemento: \"{goal}\". "
-                                    "Responda SOMENTE com JSON no formato "
-                                    '{"found": true, "x": <int>, "y": <int>} usando o '
-                                    "centro do elemento em pixels da imagem, ou "
-                                    '{"found": false} se não estiver visível.'
+                                    "You are looking at a screenshot of the visible window of a "
+                                    f"web page ({viewport['width']}x{viewport['height']} pixels). "
+                                    f"Locate the following element: \"{goal}\". "
+                                    "Reply ONLY with JSON in the format "
+                                    '{"found": true, "x": <int>, "y": <int>} using the '
+                                    "center of the element in image pixels, or "
+                                    '{"found": false} if it is not visible.'
                                 ),
                             }
                         ],

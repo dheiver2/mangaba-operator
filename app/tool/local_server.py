@@ -20,9 +20,9 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
 class LocalServer(BaseTool):
     name: str = "local_server"
     description: str = (
-        "Publica uma pasta (padrão: o workspace) num servidor HTTP local — útil "
-        "para 'deployar' um site/relatório HTML gerado e abri-lo no navegador, ou "
-        "para testar downloads. Ações: start (retorna a URL), stop, status."
+        "Serves a folder (default: the workspace) on a local HTTP server — useful "
+        "to 'deploy' a generated HTML site/report and open it in the browser, or "
+        "to test downloads. Actions: start (returns the URL), stop, status."
     )
     parameters: dict = {
         "type": "object",
@@ -30,15 +30,15 @@ class LocalServer(BaseTool):
             "action": {
                 "type": "string",
                 "enum": ["start", "stop", "status"],
-                "description": "start: sobe o servidor; stop: derruba; status: lista ativos",
+                "description": "start: launch the server; stop: shut it down; status: list active servers",
             },
             "port": {
                 "type": "integer",
-                "description": "Porta TCP (padrão 8700)",
+                "description": "TCP port (default 8700)",
             },
             "dir": {
                 "type": "string",
-                "description": "Pasta a servir (padrão: workspace; relativo cai no workspace)",
+                "description": "Folder to serve (default: workspace; relative paths go to the workspace)",
             },
         },
         "required": ["action"],
@@ -50,43 +50,43 @@ class LocalServer(BaseTool):
         try:
             port = int(port)
         except (TypeError, ValueError):
-            return ToolResult(error=f"Porta inválida: {port!r}")
+            return ToolResult(error=f"Invalid port: {port!r}")
 
         if action == "status":
             if not _SERVERS:
-                return ToolResult(output="Nenhum servidor local ativo")
+                return ToolResult(output="No local server running")
             lines = [
                 f"  http://localhost:{p} → {srv.RequestHandlerClass.directory}"
                 for p, srv in _SERVERS.items()
             ]
-            return ToolResult(output="Servidores ativos:\n" + "\n".join(lines))
+            return ToolResult(output="Active servers:\n" + "\n".join(lines))
 
         if action == "stop":
             srv = _SERVERS.pop(port, None)
             if not srv:
-                return ToolResult(output=f"Nenhum servidor na porta {port}")
+                return ToolResult(output=f"No server on port {port}")
             srv.shutdown()
             srv.server_close()
-            return ToolResult(output=f"Servidor da porta {port} derrubado")
+            return ToolResult(output=f"Server on port {port} stopped")
 
         if action == "start":
             if port in _SERVERS:
                 return ToolResult(
-                    output=f"Já ativo: http://localhost:{port}"
+                    output=f"Already running: http://localhost:{port}"
                 )
             root = _resolve(dir) if dir else config.workspace_root
             if not root.is_dir():
-                return ToolResult(error=f"Pasta não encontrada: {root}")
+                return ToolResult(error=f"Folder not found: {root}")
             handler = functools.partial(_QuietHandler, directory=str(root))
             handler.directory = str(root)  # p/ o status
             try:
                 srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
             except OSError as e:
-                return ToolResult(error=f"Porta {port} indisponível: {e}")
+                return ToolResult(error=f"Port {port} unavailable: {e}")
             threading.Thread(target=srv.serve_forever, daemon=True).start()
             _SERVERS[port] = srv
             return ToolResult(
-                output=f"Servindo {root} em http://localhost:{port} (use 'stop' ao terminar)"
+                output=f"Serving {root} at http://localhost:{port} (use 'stop' when done)"
             )
 
-        return ToolResult(error=f"Ação desconhecida: {action}")
+        return ToolResult(error=f"Unknown action: {action}")

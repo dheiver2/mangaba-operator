@@ -11,31 +11,31 @@ _PREVIEW = 3000
 class HttpRequest(BaseTool):
     name: str = "http_request"
     description: str = (
-        "Faz uma requisição HTTP (GET/POST/PUT/PATCH/DELETE) a uma API ou URL, com "
-        "headers e corpo JSON opcionais. Com 'save_to', baixa o corpo da resposta "
-        "para um arquivo do workspace (relatórios, imagens, CSVs). Use para APIs "
-        "REST; para páginas HTML prefira fetch_url ou o navegador."
+        "Makes an HTTP request (GET/POST/PUT/PATCH/DELETE) to an API or URL, with "
+        "optional headers and JSON body. With 'save_to', downloads the response body "
+        "to a workspace file (reports, images, CSVs). Use for REST APIs; "
+        "for HTML pages prefer fetch_url or the browser."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "url": {"type": "string", "description": "URL completa (http/https)"},
+            "url": {"type": "string", "description": "Full URL (http/https)"},
             "method": {
                 "type": "string",
                 "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
-                "description": "Método HTTP (padrão GET)",
+                "description": "HTTP method (default GET)",
             },
             "headers": {
                 "type": "object",
-                "description": "Headers extras, ex. {\"Authorization\": \"Bearer ...\"}",
+                "description": "Extra headers, e.g. {\"Authorization\": \"Bearer ...\"}",
             },
             "body": {
                 "type": "string",
-                "description": "Corpo da requisição. Se for JSON válido, é enviado como application/json",
+                "description": "Request body. If valid JSON, it is sent as application/json",
             },
             "save_to": {
                 "type": "string",
-                "description": "Caminho de destino para salvar a resposta (relativo cai no workspace)",
+                "description": "Destination path to save the response (relative paths go to the workspace)",
             },
         },
         "required": ["url"],
@@ -53,12 +53,12 @@ class HttpRequest(BaseTool):
         import requests
 
         if not url.startswith(("http://", "https://")):
-            return ToolResult(error=f"URL inválida (precisa de http/https): {url}")
+            return ToolResult(error=f"Invalid URL (must be http/https): {url}")
         if isinstance(headers, str):
             try:
                 headers = json.loads(headers)
             except json.JSONDecodeError:
-                return ToolResult(error="'headers' deve ser um objeto JSON")
+                return ToolResult(error="'headers' must be a JSON object")
 
         kwargs_req: dict = {"headers": headers or {}, "timeout": 60}
         if body:
@@ -70,7 +70,7 @@ class HttpRequest(BaseTool):
         try:
             resp = requests.request(method.upper(), url, stream=bool(save_to), **kwargs_req)
         except requests.RequestException as e:
-            return ToolResult(error=f"Requisição falhou: {e}")
+            return ToolResult(error=f"Request failed: {e}")
 
         ctype = resp.headers.get("content-type", "?")
         if save_to:
@@ -82,11 +82,11 @@ class HttpRequest(BaseTool):
                     fh.write(chunk)
                     size += len(chunk)
             return ToolResult(
-                output=f"HTTP {resp.status_code} — {size} bytes ({ctype}) salvos em {dest}"
+                output=f"HTTP {resp.status_code} — {size} bytes ({ctype}) saved to {dest}"
             )
 
         text = resp.text or ""
-        preview = text[:_PREVIEW] + ("… (truncado)" if len(text) > _PREVIEW else "")
+        preview = text[:_PREVIEW] + ("… (truncated)" if len(text) > _PREVIEW else "")
         return ToolResult(
             output=f"HTTP {resp.status_code} ({ctype}, {len(text)} chars):\n{preview}"
         )

@@ -11,21 +11,21 @@ from app.tool.base import BaseTool, ToolResult
 class TextToSpeech(BaseTool):
     name: str = "text_to_speech"
     description: str = (
-        "Converte texto em áudio falado (síntese de voz local do macOS) e salva "
-        ".aiff no workspace — bom para resumos audíveis e notificações faladas. "
-        "Vozes PT-BR: 'Luciana' (padrão) e 'Joana'."
+        "Converts text to spoken audio (local macOS speech synthesis) and saves an "
+        ".aiff file in the workspace — good for audible summaries and spoken notifications. "
+        "PT-BR voices: 'Luciana' (default) and 'Joana'."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "text": {"type": "string", "description": "Texto a falar (até ~2000 chars)"},
+            "text": {"type": "string", "description": "Text to speak (up to ~2000 chars)"},
             "voice": {
                 "type": "string",
-                "description": "Voz do sistema (padrão: Luciana, PT-BR)",
+                "description": "System voice (default: Luciana, PT-BR)",
             },
             "play": {
                 "type": "boolean",
-                "description": "true: também toca o áudio nos alto-falantes (padrão false)",
+                "description": "true: also play the audio through the speakers (default false)",
             },
         },
         "required": ["text"],
@@ -36,11 +36,11 @@ class TextToSpeech(BaseTool):
     ) -> ToolResult:
         if not shutil.which("say"):
             return ToolResult(
-                error="Comando 'say' indisponível (síntese de voz exige macOS)"
+                error="'say' command unavailable (speech synthesis requires macOS)"
             )
         text = text.strip()
         if not text:
-            return ToolResult(error="Texto vazio")
+            return ToolResult(error="Empty text")
         text = text[:2000]
 
         dest = config.workspace_root / f"fala_{time.strftime('%Y%m%d_%H%M%S')}.aiff"
@@ -52,7 +52,7 @@ class TextToSpeech(BaseTool):
         _, err = await proc.communicate()
         if proc.returncode != 0:
             return ToolResult(
-                error=f"say falhou (voz '{voice}' existe?): {err.decode()[:200]}"
+                error=f"say failed (does voice '{voice}' exist?): {err.decode()[:200]}"
             )
 
         if play:
@@ -60,6 +60,6 @@ class TextToSpeech(BaseTool):
 
         size = dest.stat().st_size
         return ToolResult(
-            output=f"Áudio gerado ({size} bytes, voz {voice}): {dest}"
-            + (" — tocando agora" if play else "")
+            output=f"Audio generated ({size} bytes, voice {voice}): {dest}"
+            + (" — playing now" if play else "")
         )

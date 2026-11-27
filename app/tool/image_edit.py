@@ -7,9 +7,9 @@ from app.tool.gateway_media import _resolve
 class ImageEdit(BaseTool):
     name: str = "image_edit"
     description: str = (
-        "Operações básicas em imagens locais: info (dimensões/formato), resize, "
-        "crop, rotate e convert (png/jpg/webp). Para ENTENDER o conteúdo de uma "
-        "imagem use describe_image; esta ferramenta só transforma o arquivo."
+        "Basic operations on local images: info (dimensions/format), resize, "
+        "crop, rotate and convert (png/jpg/webp). To UNDERSTAND the content of an "
+        "image use describe_image; this tool only transforms the file."
     )
     parameters: dict = {
         "type": "object",
@@ -17,26 +17,26 @@ class ImageEdit(BaseTool):
             "action": {
                 "type": "string",
                 "enum": ["info", "resize", "crop", "rotate", "convert"],
-                "description": "Operação a aplicar",
+                "description": "Operation to apply",
             },
-            "image_path": {"type": "string", "description": "Imagem de origem"},
+            "image_path": {"type": "string", "description": "Source image"},
             "dest": {
                 "type": "string",
-                "description": "Arquivo de saída (padrão: sufixo _editado; a extensão define o formato em 'convert')",
+                "description": "Output file (default: _editado suffix; the extension sets the format in 'convert')",
             },
-            "width": {"type": "integer", "description": "Largura alvo para 'resize'"},
+            "width": {"type": "integer", "description": "Target width for 'resize'"},
             "height": {
                 "type": "integer",
-                "description": "Altura alvo para 'resize' (omitida = mantém proporção)",
+                "description": "Target height for 'resize' (omitted = keep aspect ratio)",
             },
             "box": {
                 "type": "array",
                 "items": {"type": "integer"},
-                "description": "Retângulo [esq, topo, dir, base] para 'crop'",
+                "description": "Rectangle [left, top, right, bottom] for 'crop'",
             },
             "degrees": {
                 "type": "integer",
-                "description": "Graus anti-horários para 'rotate' (90/180/270...)",
+                "description": "Counter-clockwise degrees for 'rotate' (90/180/270...)",
             },
         },
         "required": ["action", "image_path"],
@@ -57,44 +57,44 @@ class ImageEdit(BaseTool):
 
         src = _resolve(image_path)
         if not src.is_file():
-            return ToolResult(error=f"Imagem não encontrada: {src}")
+            return ToolResult(error=f"Image not found: {src}")
 
         try:
             im = Image.open(src)
             im.load()
         except Exception as e:
-            return ToolResult(error=f"Arquivo não é imagem legível: {e}")
+            return ToolResult(error=f"File is not a readable image: {e}")
 
         if action == "info":
             return ToolResult(
                 output=(
-                    f"{src.name}: {im.width}x{im.height} px, formato {im.format}, "
-                    f"modo {im.mode}, {src.stat().st_size} bytes"
+                    f"{src.name}: {im.width}x{im.height} px, format {im.format}, "
+                    f"mode {im.mode}, {src.stat().st_size} bytes"
                 )
             )
 
         try:
             if action == "resize":
                 if not width and not height:
-                    return ToolResult(error="'resize' exige width e/ou height")
+                    return ToolResult(error="'resize' requires width and/or height")
                 w = int(width) if width else round(im.width * int(height) / im.height)
                 h = int(height) if height else round(im.height * int(width) / im.width)
                 im = im.resize((w, h), Image.LANCZOS)
             elif action == "crop":
                 if not box or len(box) != 4:
-                    return ToolResult(error="'crop' exige box=[esq, topo, dir, base]")
+                    return ToolResult(error="'crop' requires box=[left, top, right, bottom]")
                 im = im.crop(tuple(int(v) for v in box))
             elif action == "rotate":
                 if degrees is None:
-                    return ToolResult(error="'rotate' exige 'degrees'")
+                    return ToolResult(error="'rotate' requires 'degrees'")
                 im = im.rotate(int(degrees), expand=True)
             elif action == "convert":
                 if not dest:
                     return ToolResult(
-                        error="'convert' exige 'dest' com a nova extensão (ex. foto.webp)"
+                        error="'convert' requires 'dest' with the new extension (e.g. photo.webp)"
                     )
             else:
-                return ToolResult(error=f"Ação desconhecida: {action}")
+                return ToolResult(error=f"Unknown action: {action}")
 
             out = _resolve(dest) if dest else src.with_stem(src.stem + "_editado")
             out.parent.mkdir(parents=True, exist_ok=True)
@@ -105,4 +105,4 @@ class ImageEdit(BaseTool):
                 output=f"{action} OK → {out} ({im.width}x{im.height}, {out.stat().st_size} bytes)"
             )
         except Exception as e:
-            return ToolResult(error=f"Falha em '{action}': {e}")
+            return ToolResult(error=f"'{action}' failed: {e}")

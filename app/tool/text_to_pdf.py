@@ -10,19 +10,19 @@ from app.tool.gateway_media import _resolve
 class TextToPdf(BaseTool):
     name: str = "text_to_pdf"
     description: str = (
-        "Gera um PDF formatado a partir de texto simples ou markdown leve "
-        "(títulos com #, ## e listas com -). Ideal para entregar relatórios e "
-        "resumos como arquivo. Para layouts complexos use python_execute com "
-        "reportlab direto."
+        "Generates a formatted PDF from plain text or light markdown "
+        "(headings with #, ## and lists with -). Ideal for delivering reports and "
+        "summaries as a file. For complex layouts use python_execute with "
+        "reportlab directly."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "text": {"type": "string", "description": "Conteúdo do documento"},
-            "title": {"type": "string", "description": "Título da capa (opcional)"},
+            "text": {"type": "string", "description": "Document content"},
+            "title": {"type": "string", "description": "Cover title (optional)"},
             "dest": {
                 "type": "string",
-                "description": "Arquivo .pdf de saída (padrão: relatorio_<timestamp>.pdf no workspace)",
+                "description": "Output .pdf file (default: relatorio_<timestamp>.pdf in the workspace)",
             },
         },
         "required": ["text"],
@@ -37,7 +37,7 @@ class TextToPdf(BaseTool):
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
         if not text.strip():
-            return ToolResult(error="Texto vazio")
+            return ToolResult(error="Empty text")
 
         out = (
             _resolve(dest)
@@ -72,8 +72,8 @@ class TextToPdf(BaseTool):
         try:
             SimpleDocTemplate(str(out), pagesize=A4).build(story)
         except Exception as e:
-            return ToolResult(error=f"Falha ao gerar PDF: {e}")
+            return ToolResult(error=f"Failed to generate PDF: {e}")
 
         return ToolResult(
-            output=f"PDF gerado: {out} ({out.stat().st_size} bytes)"
+            output=f"PDF generated: {out} ({out.stat().st_size} bytes)"
         )

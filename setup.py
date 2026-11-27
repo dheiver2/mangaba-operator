@@ -9,7 +9,7 @@ setup(
     version="0.1.0",
     author="Mangaba AI Team",
     author_email="dheiver.santos@gmail.com",
-    description="Mangaba Operator — agente de IA versátil que resolve tarefas usando múltiplas ferramentas",
+    description="Mangaba Operator — versatile AI agent that solves tasks using multiple tools",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/dheiver2/mangaba-operator",

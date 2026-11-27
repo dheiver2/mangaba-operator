@@ -16,21 +16,21 @@ from app.schema import Message
 _IGNORAR = {"cache", "memoria", "fila", "todo.md", "rascunhos"}
 _BINARIOS = {".xlsx", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".wav", ".mp3", ".mov", ".zip"}
 
-PROMPT_REVISOR = """Você é um revisor rigoroso de qualidade. Avalie se a tarefa foi cumprida.
+PROMPT_REVISOR = """You are a strict quality reviewer. Assess whether the task was fulfilled.
 
-TAREFA PEDIDA:
+REQUESTED TASK:
 {task}
 
-ENTREGÁVEIS PRODUZIDOS NO WORKSPACE (arquivos novos/modificados):
+DELIVERABLES PRODUCED IN THE WORKSPACE (new/modified files):
 {arquivos}
 
-Critérios: os arquivos pedidos existem? O conteúdo atende ao que foi pedido?
-Há erros evidentes, conteúdo vazio ou placeholder?
+Criteria: do the requested files exist? Does the content meet what was asked?
+Are there obvious errors, empty content or placeholders?
 
-Responda EXATAMENTE em um destes formatos:
-APROVADO
-ou
-REPROVADO: <lista curta e objetiva dos problemas e do que corrigir>"""
+Reply in EXACTLY one of these formats:
+APPROVED
+or
+REJECTED: <short, objective list of the problems and what to fix>"""
 
 
 def _entregaveis(desde: float) -> list[Path]:
@@ -60,10 +60,10 @@ def _preview(p: Path, limite: int = 1200) -> str:
                 from docx import Document
 
                 paras = [q.text for q in Document(str(p)).paragraphs[:5] if q.text]
-                extra = f" | início: {paras}"
+                extra = f" | start: {paras}"
         except Exception:
             pass
-        return f"(arquivo binário, {p.stat().st_size} bytes{extra})"
+        return f"(binary file, {p.stat().st_size} bytes{extra})"
     try:
         if p.suffix.lower() == ".pdf":
             import pdfplumber
@@ -72,7 +72,7 @@ def _preview(p: Path, limite: int = 1200) -> str:
                 return (pdf.pages[0].extract_text() or "")[:limite]
         return p.read_text(encoding="utf-8", errors="replace")[:limite]
     except Exception as e:
-        return f"(não foi possível ler: {e})"
+        return f"(could not read: {e})"
 
 
 async def revisar(task: str, desde: float) -> tuple[bool, str]:
@@ -80,7 +80,7 @@ async def revisar(task: str, desde: float) -> tuple[bool, str]:
     arquivos = _entregaveis(desde)
     listagem = (
         "\n\n".join(f"--- {p.relative_to(config.workspace_root)} ---\n{_preview(p)}" for p in arquivos[:10])
-        or "(NENHUM arquivo novo ou modificado no workspace)"
+        or "(NO new or modified file in the workspace)"
     )
     llm = LLM()
     parecer = (
@@ -89,7 +89,7 @@ async def revisar(task: str, desde: float) -> tuple[bool, str]:
             stream=False,
         )
     ).strip()
-    aprovado = parecer.upper().lstrip("* #").startswith("APROVADO")
+    aprovado = parecer.upper().lstrip("* #").startswith(("APPROVED", "APROVADO"))
     return aprovado, parecer
 
 
@@ -117,8 +117,8 @@ async def executar_com_verificacao(
         aplicar_perfil(corretor, perfil)
         try:
             await corretor.run(
-                "Uma tarefa foi executada mas o REVISOR apontou problemas. "
-                f"Corrija os entregáveis no workspace e finalize.\n\nTAREFA ORIGINAL: {0}\n\nPARECER DO REVISOR: {1}".format(
+                "A task was executed but the REVIEWER pointed out problems. "
+                f"Fix the deliverables in the workspace and finish.\n\nORIGINAL TASK: {0}\n\nREVIEWER VERDICT: {1}".format(
                     task, parecer
                 )
             )
@@ -127,7 +127,7 @@ async def executar_com_verificacao(
         aprovado, parecer = await revisar(task, inicio)
 
     if aprovado:
-        logger.info("✅ Revisor aprovou os entregáveis")
+        logger.info("✅ Reviewer approved the deliverables")
     else:
-        logger.error(f"❌ Reprovado após {rodadas_correcao} correção(ões): {parecer[:300]}")
+        logger.error(f"❌ Rejected after {rodadas_correcao} correction(s): {parecer[:300]}")
     return aprovado, parecer

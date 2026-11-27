@@ -27,21 +27,21 @@ _HEADERS = {
 class FetchUrl(BaseTool):
     name: str = "fetch_url"
     description: str = (
-        "Baixa uma página web e retorna o conteúdo como markdown. RÁPIDO: use esta "
-        "ferramenta para ler páginas estáticas (notícias, documentação, artigos) em vez "
-        "do browser_use. Use browser_use apenas quando precisar interagir com a página "
-        "(clicar, preencher formulário, login) ou quando fetch_url falhar."
+        "Downloads a web page and returns its content as markdown. FAST: use this "
+        "tool to read static pages (news, documentation, articles) instead of "
+        "browser_use. Use browser_use only when you need to interact with the page "
+        "(click, fill a form, log in) or when fetch_url fails."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
             "url": {
                 "type": "string",
-                "description": "URL completa da página (http/https)",
+                "description": "Full page URL (http/https)",
             },
             "max_chars": {
                 "type": "integer",
-                "description": f"Limite de caracteres do resultado (padrão {_MAX_CHARS})",
+                "description": f"Character limit for the result (default {_MAX_CHARS})",
             },
         },
         "required": ["url"],
@@ -56,10 +56,10 @@ class FetchUrl(BaseTool):
                 resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             return ToolResult(
-                error=f"HTTP {e.response.status_code} ao buscar {url}"
+                error=f"HTTP {e.response.status_code} fetching {url}"
             )
         except Exception as e:
-            return ToolResult(error=f"Falha ao buscar {url}: {e}")
+            return ToolResult(error=f"Failed to fetch {url}: {e}")
 
         content_type = resp.headers.get("content-type", "")
         if "html" in content_type:
@@ -70,7 +70,7 @@ class FetchUrl(BaseTool):
         text = text.strip()
         max_chars = int(max_chars) if max_chars else _MAX_CHARS
         if len(text) <= max_chars:
-            return ToolResult(output=f"Conteúdo de {url}:\n\n{text}")
+            return ToolResult(output=f"Content of {url}:\n\n{text}")
 
         # Compressão reversível (context engineering): o conteúdo completo sai
         # do contexto mas fica recuperável em arquivo — nada é perdido.
@@ -84,9 +84,9 @@ class FetchUrl(BaseTool):
         preview = text[:max_chars]
         return ToolResult(
             output=(
-                f"Conteúdo de {url} (mostrando {max_chars} de {len(text)} caracteres):\n\n"
+                f"Content of {url} (showing {max_chars} of {len(text)} characters):\n\n"
                 f"{preview}\n\n"
-                f"[CONTEÚDO COMPLETO salvo em {full_path} — se precisar do restante, "
-                f"leia esse arquivo com str_replace_editor (command view) ou python_execute]"
+                f"[FULL CONTENT saved to {full_path} — if you need the rest, "
+                f"read that file with str_replace_editor (command view) or python_execute]"
             )
         )
