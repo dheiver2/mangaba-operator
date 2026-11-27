@@ -31,5 +31,5 @@ def aplicar_perfil(agent, perfil: str) -> None:
     manter = [t for t in agent.available_tools.tools if t.name not in _EXCLUI_RAPIDO]
     agent.available_tools = ToolCollection(*manter)
     logger.info(
-        f"⚡ Perfil rápido: {len(manter)} ferramentas (removidas: {', '.join(sorted(_EXCLUI_RAPIDO))})"
+        f"⚡ Fast profile: {len(manter)} tools (removed: {', '.join(sorted(_EXCLUI_RAPIDO))})"
     )

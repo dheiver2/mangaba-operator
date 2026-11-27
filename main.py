@@ -23,19 +23,19 @@ async def main():
         "--model",
         type=str,
         required=False,
-        help="Override do modelo padrão (ex.: mangaba-pro, mangaba-lite-q4)",
+        help="Override the default model (e.g. mangaba-pro, mangaba-lite-q4)",
     )
     parser.add_argument(
         "--perfil",
         type=str,
         default="completo",
         choices=["completo", "rapido"],
-        help="'rapido' remove schemas pesados (navegador/mídia/canais) e acelera ~5-8s por passo",
+        help="'rapido' removes heavy schemas (browser/media/channels) and speeds up each step by ~5-8s",
     )
     parser.add_argument(
         "--verificar",
         action="store_true",
-        help="Ciclo gerar→criticar→revisar: um revisor de contexto limpo valida os entregáveis e dispara 1 rodada de correção se reprovar",
+        help="Generate→critique→revise loop: a clean-context reviewer validates the deliverables and triggers 1 correction round if rejected",
     )
     args = parser.parse_args()
 
@@ -60,7 +60,7 @@ async def main():
     if args.verificar:
         from app.verificador import executar_com_verificacao
 
-        logger.warning("Processing your request (com verificação)...")
+        logger.warning("Processing your request (with verification)...")
         aprovado, parecer = await executar_com_verificacao(
             prompt, max_steps=args.max_steps, perfil=args.perfil
         )

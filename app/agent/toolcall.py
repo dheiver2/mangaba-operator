@@ -254,7 +254,7 @@ class ToolCallAgent(ReActAgent):
             ):
                 if self._shrink_context():
                     logger.warning(
-                        "🧹 Contexto excedeu a janela do modelo; histórico encolhido, repetindo o passo"
+                        "🧹 Context exceeded the model window; history trimmed, retrying the step"
                     )
                     return await self.think()
             raise
@@ -384,7 +384,7 @@ class ToolCallAgent(ReActAgent):
         )
         if repeticoes >= 2 and not ja_avisado:
             logger.warning(
-                f"🔁 Ação '{command.function.name}' falhou {repeticoes}x com os mesmos argumentos; forçando mudança de estratégia"
+                f"🔁 Action '{command.function.name}' failed {repeticoes}x with the same arguments; forcing a strategy change"
             )
             self.memory.add_message(
                 Message.user_message(

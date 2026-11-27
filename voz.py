@@ -61,7 +61,7 @@ async def main() -> None:
     audio = Path(args.file) if args.file else gravar(args.seconds)
 
     if args.chat:
-        r = await AudioChat().execute(audio_path=str(audio), instructions="Responda em português, de forma breve e natural.")
+        r = await AudioChat().execute(audio_path=str(audio), instructions="Reply briefly and naturally, in the language the user spoke (default: English).")
         if r.error:
             logger.error(r.error)
             return
@@ -76,7 +76,7 @@ async def main() -> None:
         logger.error(t.error)
         return
     tarefa = t.output.split("\n\n", 1)[-1].strip()
-    logger.info(f"📝 Tarefa entendida: {tarefa}")
+    logger.info(f"📝 Task understood: {tarefa}")
     falar("Entendido. Executando.")
 
     agent = await Mangaba.create(max_steps=args.max_steps)
@@ -84,7 +84,7 @@ async def main() -> None:
         await agent.run(tarefa)
         # última mensagem do assistente com conteúdo vira a resposta falada
         finais = [m.content for m in agent.memory.messages if m.role == "assistant" and m.content]
-        resposta = finais[-1] if finais else "Tarefa concluída. Veja os resultados no workspace."
+        resposta = finais[-1] if finais else "Task completed. See the results in the workspace."
         print(f"\n🥭 {resposta}\n")
         falar(resposta)
     finally:

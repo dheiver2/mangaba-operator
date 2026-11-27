@@ -12,20 +12,20 @@ _PREVIEW = 5000
 class ReadPdf(BaseTool):
     name: str = "read_pdf"
     description: str = (
-        "Extrai o texto (e detecta tabelas) de um arquivo PDF local — contratos, "
-        "notas fiscais, relatórios. Mais rápido e confiável que abrir o PDF por "
-        "outros meios. O texto completo fica salvo em workspace/cache/."
+        "Extracts text (and detects tables) from a local PDF file — contracts, "
+        "invoices, reports. Faster and more reliable than opening the PDF by "
+        "other means. The full text is saved to workspace/cache/."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
             "pdf_path": {
                 "type": "string",
-                "description": "Caminho do PDF; relativo é resolvido contra o workspace",
+                "description": "Path to the PDF; relative paths resolve against the workspace",
             },
             "pages": {
                 "type": "string",
-                "description": "Intervalo opcional de páginas, ex. '1-3' ou '2' (padrão: todas)",
+                "description": "Optional page range, e.g. '1-3' or '2' (default: all)",
             },
         },
         "required": ["pdf_path"],
@@ -36,7 +36,7 @@ class ReadPdf(BaseTool):
 
         path = _resolve(pdf_path)
         if not path.is_file():
-            return ToolResult(error=f"PDF não encontrado: {path}")
+            return ToolResult(error=f"PDF not found: {path}")
 
         try:
             with pdfplumber.open(path) as pdf:
@@ -50,13 +50,13 @@ class ReadPdf(BaseTool):
                 chunks, n_tables = [], 0
                 for i in range(start - 1, end):
                     page = pdf.pages[i]
-                    chunks.append(f"--- Página {i + 1} ---\n{page.extract_text() or '(sem texto extraível)'}")
+                    chunks.append(f"--- Page {i + 1} ---\n{page.extract_text() or '(no extractable text)'}")
                     for tb in page.extract_tables():
                         n_tables += 1
                         linhas = ["\t".join(str(c) if c is not None else "" for c in row) for row in tb]
-                        chunks.append(f"[Tabela {n_tables} da página {i + 1}]\n" + "\n".join(linhas))
+                        chunks.append(f"[Table {n_tables} on page {i + 1}]\n" + "\n".join(linhas))
         except Exception as e:
-            return ToolResult(error=f"Falha ao ler PDF: {e}")
+            return ToolResult(error=f"Failed to read PDF: {e}")
 
         text = "\n\n".join(chunks).strip()
         cache_dir = config.workspace_root / "cache"
@@ -65,9 +65,9 @@ class ReadPdf(BaseTool):
         saved.write_text(text, encoding="utf-8")
 
         header = (
-            f"PDF {path.name}: {total} página(s), lidas {start}-{end}, "
-            f"{n_tables} tabela(s). Texto completo salvo em {saved}.\n\n"
+            f"PDF {path.name}: {total} page(s), read {start}-{end}, "
+            f"{n_tables} table(s). Full text saved to {saved}.\n\n"
         )
         if len(text) > _PREVIEW:
-            return ToolResult(output=header + text[:_PREVIEW] + "\n[...restante no arquivo de cache...]")
+            return ToolResult(output=header + text[:_PREVIEW] + "\n[...rest in the cache file...]")
         return ToolResult(output=header + text)

@@ -174,11 +174,11 @@ class BaseAgent(BaseModel, ABC):
     def handle_stuck_state(self):
         """Handle stuck state by adding a prompt to change strategy"""
         stuck_prompt = (
-            "ATENCAO: voce repetiu exatamente a mesma acao e ela FALHOU. "
-            "NAO repita a mesma acao. Antes de clicar em qualquer elemento, "
-            "obtenha o estado atual da pagina para ver os indices validos "
-            "(os indices mudam a cada navegacao). Se a busca falhar, navegue "
-            "diretamente via go_to_url com a URL completa."
+            "WARNING: you repeated exactly the same action and it FAILED. "
+            "Do NOT repeat the same action. Before clicking any element, "
+            "get the current page state to see the valid indexes "
+            "(indexes change on every navigation). If the search fails, navigate "
+            "directly via go_to_url with the full URL."
         )
         self.next_step_prompt = f"{stuck_prompt}\n{self.next_step_prompt}"
         logger.warning(f"Agent detected stuck state. Added prompt: {stuck_prompt}")

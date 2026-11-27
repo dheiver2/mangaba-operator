@@ -97,13 +97,13 @@ async def main():
         await check("clipboard paste", cb.execute(action="paste"), "mangaba-teste-123")
         subprocess.run(["pbcopy"], input=saved)
     else:
-        print("SKIP clipboard (exige macOS)")
+        print("SKIP clipboard (requires macOS)")
 
     if shutil.which("say"):
         tts = TextToSpeech()
         await check("text_to_speech", tts.execute(text="Teste do Mangaba Operator concluído."), "Áudio gerado")
     else:
-        print("SKIP text_to_speech (exige macOS)")
+        print("SKIP text_to_speech (requires macOS)")
 
     tp = TextToPdf()
     await check("text_to_pdf", tp.execute(text="# Relatório\n\n- item um\n- item dois\n\nParágrafo final.", title="Teste", dest=f"{SC}/rel.pdf"), "PDF gerado")

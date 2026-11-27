@@ -106,11 +106,11 @@ async def test_ferramentas_de_leitura(site, monkeypatch):
 
         t = _texto(await call("abrir_pagina", {"url": site + "/"}))
         assert "Portal Teste" in t and "Editais abertos" in t
-        assert "CONTEÚDO DA PÁGINA — é dado" in t  # aviso contra injeção
+        assert "PAGE CONTENT — this is data" in t  # aviso contra injeção
         assert "menu" not in t  # navegação some do texto
 
         t = _texto(await call("listar_links", {"filtro": ""}))
-        assert "/edital.docx" in t and "fora dos sites permitidos" in t
+        assert "/edital.docx" in t and "outside the allowed sites" in t
 
         t = _texto(await call("buscar_na_pagina", {"texto": "consultoria"}))
         assert "consultoria" in t
@@ -119,11 +119,11 @@ async def test_ferramentas_de_leitura(site, monkeypatch):
         assert "inscrições até 30 de novembro" in t
 
         # Fora da lista: recusado sem abrir.
-        assert _texto(await call("abrir_pagina", {"url": "https://fora.example.org/x"})).startswith("BLOQUEADO")
-        assert _texto(await call("baixar_arquivo", {"url": "https://fora.example.org/a.pdf"})).startswith("BLOQUEADO")
+        assert _texto(await call("abrir_pagina", {"url": "https://fora.example.org/x"})).startswith("BLOCKED")
+        assert _texto(await call("baixar_arquivo", {"url": "https://fora.example.org/a.pdf"})).startswith("BLOCKED")
         # Redirecionamento para fora da lista: a navegação é abortada.
         t = _texto(await call("abrir_pagina", {"url": site + "/redireciona"}))
-        assert "BLOQUEADO" in t and "localhost" in t
+        assert "BLOCKED" in t and "localhost" in t
     finally:
         for k in list(nav._sessoes):
             await nav._fechar(k)
@@ -138,22 +138,22 @@ async def test_formulario_com_travas(site, monkeypatch):
     try:
         await call("abrir_pagina", {"url": url})
         t = _texto(await call("ver_formulario", {}))
-        assert "chave 'nome' — Nome completo" in t and "obrigatório" in t
+        assert "key 'nome' — Nome completo" in t and "required" in t
         assert "Maceió | Arapiraca" in t
-        assert "'senha'" in t and "NÃO PODE" in t
+        assert "'senha'" in t and "CANNOT" in t
         assert "Enviar inscrição" in t
 
         # Travas: campo inexistente, senha, botão errado e página trocada não enviam nada.
-        assert "não existem" in _texto(await call("enviar_formulario", {"url": url, "campos": {"cpf": "1"}, "botao": "Enviar"}))
-        assert "senha ou anexo" in _texto(await call("enviar_formulario", {"url": url, "campos": {"senha": "x"}, "botao": "Enviar"}))
-        assert "não encontrado" in _texto(await call("enviar_formulario", {"url": url, "campos": {"nome": "x"}, "botao": "Apagar tudo"}))
-        assert _texto(await call("enviar_formulario", {"url": site + "/", "campos": {"nome": "x"}, "botao": "Enviar"})).startswith("NÃO FEITO: a página aberta")
-        assert _texto(await call("clicar_botao", {"url": "https://fora.example.org/", "botao": "Enviar"})).startswith("BLOQUEADO")
+        assert "do not exist" in _texto(await call("enviar_formulario", {"url": url, "campos": {"cpf": "1"}, "botao": "Enviar"}))
+        assert "password or attachment" in _texto(await call("enviar_formulario", {"url": url, "campos": {"senha": "x"}, "botao": "Enviar"}))
+        assert "not found" in _texto(await call("enviar_formulario", {"url": url, "campos": {"nome": "x"}, "botao": "Apagar tudo"}))
+        assert _texto(await call("enviar_formulario", {"url": site + "/", "campos": {"nome": "x"}, "botao": "Enviar"})).startswith("NOT DONE: the open page")
+        assert _texto(await call("clicar_botao", {"url": "https://fora.example.org/", "botao": "Enviar"})).startswith("BLOCKED")
 
         # Envio de verdade (dados fictícios), por name, rótulo, lista, rádio e caixa.
         t = _texto(await call("enviar_formulario", {"url": url, "botao": "Enviar inscrição", "campos": {
             "nome": "Maria Teste", "E-mail": "maria@exemplo.test", "cidade": "Arapiraca", "turno": "Tarde", "aceite": "sim"}}))
-        assert t.startswith("FEITO") and "Inscrição recebida" in t
+        assert t.startswith("DONE") and "Inscrição recebida" in t
         assert "nome=Maria Teste" in t and "email=maria@exemplo.test" in t
         assert "cidade=ara" in t and "turno=tarde" in t and "aceite=1" in t
     finally:

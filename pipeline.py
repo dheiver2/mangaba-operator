@@ -6,9 +6,9 @@ sequenciais — cada fase roda num AGENTE NOVO (contexto zerado) e os resultados
 passam de uma fase pra outra pelos ARQUIVOS do workspace, não pelo histórico.
 
 Uso:
-    python pipeline.py --prompt "tarefa grande"
+    python pipeline.py --prompt "large task"
     python pipeline.py --prompt "..." --max-steps 6     # passos por fase
-    python pipeline.py --prompt "..." --fases "transcrever o áudio X; buscar contexto na web; gerar briefing.md"
+    python pipeline.py --prompt "..." --fases "transcribe audio X; search the web for context; generate briefing.md"
 """
 
 import argparse
@@ -53,18 +53,18 @@ async def planejar(task: str) -> list[str]:
                 return fases[:5]
         except json.JSONDecodeError:
             pass
-    logger.warning("Plano não veio em JSON; executando como fase única")
+    logger.warning("Plan did not come back as JSON; running as a single phase")
     return [task]
 
 
 async def executar_fase(task: str, fase: str, i: int, total: int, max_steps: int) -> None:
     prompt = (
-        f"Você está executando a fase {i}/{total} de uma tarefa maior.\n"
-        f"TAREFA GLOBAL (contexto): {task}\n\n"
+        f"You are running phase {i}/{total} of a larger task.\n"
+        f"GLOBAL TASK (context): {task}\n\n"
         f"SUA FASE (execute SOMENTE isto): {fase}\n\n"
-        f"Arquivos já disponíveis no workspace: {_listar_workspace()}\n"
+        f"Files already available in the workspace: {_listar_workspace()}\n"
         "Leia os arquivos que precisar, salve seu resultado no workspace e chame "
-        "terminate assim que ESTA fase estiver concluída. Não execute as outras fases."
+        "call terminate as soon as THIS phase is complete. Do not run the other phases."
     )
     agent = await Mangaba.create(max_steps=max_steps)
     try:
@@ -75,8 +75,8 @@ async def executar_fase(task: str, fase: str, i: int, total: int, max_steps: int
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Pipeline de fases do Mangaba Operator")
-    parser.add_argument("--prompt", type=str, required=True, help="Tarefa completa")
-    parser.add_argument("--max-steps", type=int, default=8, help="Passos por fase (padrão 8)")
+    parser.add_argument("--prompt", type=str, required=True, help="Full task")
+    parser.add_argument("--max-steps", type=int, default=8, help="Steps per phase (default 8)")
     parser.add_argument(
         "--fases", type=str, help="Fases manuais separadas por ';' (pula o planejamento)"
     )
@@ -106,7 +106,7 @@ async def main() -> None:
         logger.warning(f"▶️  Fase {i}/{len(fases)}: {fase}")
         await executar_fase(args.prompt, fase, i, len(fases), args.max_steps)
 
-    logger.info(f"✅ Pipeline concluído. Workspace: {_listar_workspace()}")
+    logger.info(f"✅ Pipeline completed. Workspace: {_listar_workspace()}")
 
 
 if __name__ == "__main__":

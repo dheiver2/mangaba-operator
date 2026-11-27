@@ -42,16 +42,16 @@ def _extra_config(section: str) -> dict:
 class SendEmail(BaseTool):
     name: str = "send_email"
     description: str = (
-        "Envia um e-mail via SMTP configurado. AÇÃO IRREVERSÍVEL E EXTERNA: use "
-        "somente quando o usuário pediu explicitamente o envio E definiu o "
-        "destinatário. Nunca invente destinatários. Em dúvida, pergunte com ask_human."
+        "Sends an email via the configured SMTP server. IRREVERSIBLE, EXTERNAL ACTION: use "
+        "only when the user explicitly asked to send it AND specified the "
+        "recipient. Never invent recipients. When in doubt, ask with ask_human."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "to": {"type": "string", "description": "Destinatário (e-mail)"},
-            "subject": {"type": "string", "description": "Assunto"},
-            "body": {"type": "string", "description": "Corpo do e-mail (texto)"},
+            "to": {"type": "string", "description": "Recipient (email address)"},
+            "subject": {"type": "string", "description": "Subject"},
+            "body": {"type": "string", "description": "Email body (text)"},
         },
         "required": ["to", "subject", "body"],
     }
@@ -70,16 +70,16 @@ class SendEmail(BaseTool):
             )
             return ToolResult(
                 output=(
-                    f"MODO AUTÔNOMO: o e-mail NÃO foi enviado. Rascunho salvo em {draft} "
-                    "aguardando aprovação humana. Considere esta etapa concluída e siga."
+                    f"AUTONOMOUS MODE: the email was NOT sent. Draft saved to {draft} "
+                    "awaiting human approval. Consider this step done and move on."
                 )
             )
         faltando = [k for k in ("smtp_host", "smtp_port", "username", "password") if k not in cfg]
         if faltando:
             return ToolResult(
                 error=(
-                    "E-mail não configurado. Adicione a seção [email] no config/config.toml "
-                    f"com: {', '.join(faltando)}. Informe isso ao usuário e siga sem enviar."
+                    "Email not configured. Add an [email] section to config/config.toml "
+                    f"with: {', '.join(faltando)}. Tell the user and continue without sending."
                 )
             )
 
@@ -103,21 +103,21 @@ class SendEmail(BaseTool):
         try:
             await asyncio.to_thread(_send)
         except Exception as e:
-            return ToolResult(error=f"Falha no envio: {e}")
-        return ToolResult(output=f"E-mail enviado para {to} (assunto: {subject})")
+            return ToolResult(error=f"Send failed: {e}")
+        return ToolResult(output=f"Email sent to {to} (subject: {subject})")
 
 
 class NotifyWebhook(BaseTool):
     name: str = "notify_webhook"
     description: str = (
-        "Envia uma notificação de texto pro webhook configurado da empresa "
-        "(Slack, gateway de WhatsApp, n8n, etc.). Use para avisar conclusão de "
-        "tarefas ou alertas quando o usuário pedir notificação."
+        "Sends a text notification to the company's configured webhook "
+        "(Slack, WhatsApp gateway, n8n, etc.). Use to report task completion "
+        "or alerts when the user asks for a notification."
     )
     parameters: dict = {
         "type": "object",
         "properties": {
-            "message": {"type": "string", "description": "Texto da notificação"},
+            "message": {"type": "string", "description": "Notification text"},
         },
         "required": ["message"],
     }
@@ -126,12 +126,12 @@ class NotifyWebhook(BaseTool):
         cfg = _extra_config("webhook")
         if "url" not in cfg:
             return ToolResult(
-                error="Webhook não configurado (seção [webhook] com url no config/config.toml). Informe ao usuário."
+                error="Webhook not configured ([webhook] section with url in config/config.toml). Tell the user."
             )
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(cfg["url"], json={"text": message})
                 resp.raise_for_status()
         except Exception as e:
-            return ToolResult(error=f"Falha no webhook: {e}")
-        return ToolResult(output="Notificação enviada com sucesso.")
+            return ToolResult(error=f"Webhook failed: {e}")
+        return ToolResult(output="Notification sent successfully.")

@@ -15,10 +15,10 @@ _FILA = config.workspace_root / "fila"
 class ScheduleTask(BaseTool):
     name: str = "schedule_task"
     description: str = (
-        "Agenda uma tarefa para execução futura enfileirando-a na fila do Operator "
-        "(processada pelo cron de `fila.py run`). Use quando o pedido tiver uma "
-        "parte que deva rodar depois/de novo (follow-up, monitoramento, relatório "
-        "recorrente). Ações: add (enfileira 'prompt') e list (mostra a fila)."
+        "Schedules a task for later by adding it to the Operator queue "
+        "(processed by the `fila.py run` cron). Use when the request has a part "
+        "that should run later or repeatedly (follow-up, monitoring, recurring "
+        "report). Actions: add (queues 'prompt') and list (shows the queue)."
     )
     parameters: dict = {
         "type": "object",
@@ -26,11 +26,11 @@ class ScheduleTask(BaseTool):
             "action": {
                 "type": "string",
                 "enum": ["add", "list"],
-                "description": "add: enfileira; list: estado da fila",
+                "description": "add: queue a task; list: show queue status",
             },
             "prompt": {
                 "type": "string",
-                "description": "Instrução completa e autocontida da tarefa futura (para 'add')",
+                "description": "Complete, self-contained instruction for the future task (for 'add')",
             },
         },
         "required": ["action"],
@@ -42,13 +42,13 @@ class ScheduleTask(BaseTool):
 
         if action == "add":
             if not prompt.strip():
-                return ToolResult(error="'add' exige um 'prompt' não-vazio")
+                return ToolResult(error="'add' requires a non-empty 'prompt'")
             nome = f"{int(time.time() * 1000)}.task"
             (_FILA / nome).write_text(prompt.strip(), encoding="utf-8")
             return ToolResult(
                 output=(
-                    f"Tarefa enfileirada como {nome}. Será executada na próxima "
-                    "passada do processador da fila (fila.py run)."
+                    f"Task queued as {nome}. It will run on the next "
+                    "pass of the queue processor (fila.py run)."
                 )
             )
 
@@ -59,9 +59,9 @@ class ScheduleTask(BaseTool):
             lines = [
                 f"  • {p.name}: {p.read_text(encoding='utf-8')[:80]}" for p in pend[:20]
             ]
-            body = "\n".join(lines) if lines else "  (vazia)"
+            body = "\n".join(lines) if lines else "  (empty)"
             return ToolResult(
-                output=f"Pendentes: {len(pend)}\n{body}\nConcluídas: {done} · Falhas: {fail}"
+                output=f"Pending: {len(pend)}\n{body}\nCompleted: {done} · Failed: {fail}"
             )
 
-        return ToolResult(error=f"Ação desconhecida: {action}")
+        return ToolResult(error=f"Unknown action: {action}")

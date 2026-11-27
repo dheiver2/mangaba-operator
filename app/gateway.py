@@ -27,21 +27,21 @@ async def apply_model_override(model: str) -> bool:
         ).stdout.strip()
         if not token:
             logger.error(
-                "GitHub Models requer token: exporte GITHUB_TOKEN ou faça `gh auth login`"
+                "GitHub Models requires a token: export GITHUB_TOKEN or run `gh auth login`"
             )
             return False
         settings.model = model
         settings.base_url = GITHUB_MODELS_URL
         settings.api_key = token
-        logger.info(f"🐙 Provedor desta execução: GitHub Models · {model} (janela grande)")
+        logger.info(f"🐙 Provider for this run: GitHub Models · {model} (large window)")
         return True
 
     available = await list_models()
     if available and model not in available:
-        logger.error(f"Modelo '{model}' indisponível no gateway. Opções: {', '.join(available)}")
+        logger.error(f"Model '{model}' unavailable on the gateway. Options: {', '.join(available)}")
         return False
     settings.model = model
-    logger.info(f"🔀 Modelo padrão desta execução: {model}")
+    logger.info(f"🔀 Default model for this run: {model}")
     return True
 
 
@@ -72,7 +72,7 @@ async def preload_default_model(max_wait: int = 300) -> None:
             health = (await client.get(f"{root}/api/v1/health")).json()
             if health.get("ready") and model in health.get("loaded_models", []):
                 return
-            logger.info(f"⏳ Pré-carregando '{model}' no gateway...")
+            logger.info(f"⏳ Preloading '{model}' on the gateway...")
             await client.post(f"{root}/api/v1/{model}/load")
         deadline = asyncio.get_event_loop().time() + max_wait
         while asyncio.get_event_loop().time() < deadline:
@@ -85,7 +85,7 @@ async def preload_default_model(max_wait: int = 300) -> None:
                     return
             except Exception:
                 continue
-        logger.warning(f"Modelo '{model}' ainda carregando após {max_wait}s; seguindo mesmo assim")
+        logger.warning(f"Model '{model}' still loading after {max_wait}s; continuing anyway")
     except Exception:
         # provedor sem endpoint de health (ex.: outra API OpenAI-compatível)
         return

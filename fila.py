@@ -5,7 +5,7 @@ o gateway local atende uma inferência por vez, então a fila evita concorrênci
 Combine com cron/launchd pra agendamento (ver README).
 
 Uso:
-    python fila.py add "Gerar relatório X e salvar em workspace/relatorio.xlsx"
+    python fila.py add "Generate report X and save it to workspace/relatorio.xlsx"
     python fila.py list
     python fila.py run [--max-steps 10] [--model openai/gpt-4.1-mini]
 """
@@ -33,7 +33,7 @@ def add(prompt: str) -> None:
     _dirs()
     nome = f"{int(time.time() * 1000)}.task"
     (FILA / nome).write_text(prompt, encoding="utf-8")
-    print(f"➕ Tarefa enfileirada: {nome}")
+    print(f"➕ Task queued: {nome}")
 
 
 def listar() -> None:
@@ -42,7 +42,7 @@ def listar() -> None:
     print(f"Pendentes: {len(pend)}")
     for p in pend:
         print(f"  • {p.name}: {p.read_text()[:80]}")
-    print(f"Concluídas: {len(list((FILA / 'concluidas').glob('*.task')))} · Falhas: {len(list((FILA / 'falhas').glob('*.task')))}")
+    print(f"Completed: {len(list((FILA / 'concluidas').glob('*.task')))} · Failed: {len(list((FILA / 'falhas').glob('*.task')))}")
 
 
 async def _escalar(tarefa: str, prompt: str, motivo: str) -> None:
@@ -50,13 +50,13 @@ async def _escalar(tarefa: str, prompt: str, motivo: str) -> None:
     from app.tool.comms import NotifyWebhook
 
     msg = (
-        f"🚨 Mangaba Operator — tarefa escalada pra revisão humana\n"
-        f"Tarefa: {tarefa}\nPedido: {prompt[:300]}\nMotivo: {motivo[:500]}\n"
+        f"🚨 Mangaba Operator — task escalated for human review\n"
+        f"Task: {tarefa}\nRequest: {prompt[:300]}\nReason: {motivo[:500]}\n"
         f"Arquivos parciais em: {config.workspace_root}"
     )
     r = await NotifyWebhook().execute(message=msg)
     if r.error:
-        logger.warning(f"Escalação registrada só em log (webhook indisponível): {r.error[:120]}")
+        logger.warning(f"Escalation recorded in log only (webhook unavailable): {r.error[:120]}")
 
 
 async def run(max_steps: int, model: str | None, verificar: bool = False, perfil: str = "completo") -> None:
@@ -72,7 +72,7 @@ async def run(max_steps: int, model: str | None, verificar: bool = False, perfil
     if not pendentes:
         logger.info("Fila vazia.")
         return
-    logger.info(f"📥 {len(pendentes)} tarefa(s) na fila")
+    logger.info(f"📥 {len(pendentes)} task(s) in the queue")
     for tarefa in pendentes:
         prompt = tarefa.read_text(encoding="utf-8").strip()
         logger.warning(f"▶️  {tarefa.name}: {prompt[:80]}")
@@ -98,26 +98,26 @@ async def run(max_steps: int, model: str | None, verificar: bool = False, perfil
                 finally:
                     await agent.cleanup()
             tarefa.rename(FILA / "concluidas" / tarefa.name)
-            logger.info(f"✅ {tarefa.name} concluída")
+            logger.info(f"✅ {tarefa.name} completed")
         except Exception as e:
             logger.error(f"❌ {tarefa.name}: {e}")
             tarefa.rename(FILA / "falhas" / tarefa.name)
-            await _escalar(tarefa.name, prompt, f"Erro de execução: {e}")
+            await _escalar(tarefa.name, prompt, f"Execution error: {e}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fila de tarefas do Mangaba Operator")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p_add = sub.add_parser("add", help="Enfileira uma tarefa")
+    p_add = sub.add_parser("add", help="Queue a task")
     p_add.add_argument("prompt")
     sub.add_parser("list", help="Mostra a fila")
-    p_run = sub.add_parser("run", help="Processa a fila em série")
+    p_run = sub.add_parser("run", help="Process the queue serially")
     p_run.add_argument("--max-steps", type=int, default=10)
     p_run.add_argument("--model", type=str)
     p_run.add_argument("--perfil", type=str, default="completo", choices=["completo", "rapido"])
     p_run.add_argument(
         "--verificar", action="store_true",
-        help="Revisor valida cada tarefa; reprovadas são escaladas pro humano",
+        help="Reviewer validates each task; rejected ones are escalated to a human",
     )
     args = parser.parse_args()
 
